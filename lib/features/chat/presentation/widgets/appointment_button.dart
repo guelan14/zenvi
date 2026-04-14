@@ -19,7 +19,7 @@ class AppointmentButton extends StatelessWidget {
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         elevation: 4,
-        shadowColor: Colors.blue.withOpacity(0.4),
+        shadowColor: Colors.blue.withValues(alpha: 0.4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

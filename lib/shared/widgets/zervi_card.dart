@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/zervi_theme.dart';
+import 'package:zenvi/core/theme/zervi_theme.dart';
 
 class ZerviCard extends StatelessWidget {
   final Widget child;

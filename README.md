@@ -20,5 +20,10 @@ Zervi is a premium service marketplace app for Posadas, Misiones, built with **F
 
 1. Clone the repository.
 2. Run `flutter pub get`.
-3. Update Supabase credentials in `lib/core/supabase/supabase_config.dart`.
-4. Run the app: `flutter run`.
+3. Create a `.env` file in the root using `.env.example` as a template.
+4. Add your Supabase URL and Anon Key to the `.env` file.
+5. **Database Setup**:
+   - Go to your Supabase Dashboard -> SQL Editor.
+   - Copy the contents of `supabase/schema.sql` and run them.
+   - This will create all necessary tables, enums, and initial categories.
+6. Run the app: `flutter run`.

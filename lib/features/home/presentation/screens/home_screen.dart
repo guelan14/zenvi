@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
-import 'package:zenvi/shared/widgets/zervi_fab.dart';
 import 'package:zenvi/features/home/presentation/widgets/feed_selector.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 
@@ -22,10 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
             onPressed: () {},
           ),
         ],
@@ -50,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: ZerviCard(
-                    onTap: () {},
+                    onTap: () => context.push('/profile/user_$index'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -111,7 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: const ZerviFAB(),
     );
   }
 }

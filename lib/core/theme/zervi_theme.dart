@@ -12,7 +12,6 @@ class ZerviTheme {
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
-        background: backgroundColor,
         surface: cardColor,
       ),
       scaffoldBackgroundColor: backgroundColor,
@@ -55,7 +54,7 @@ class ZerviTheme {
     borderRadius: BorderRadius.circular(borderRadius),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.05),
+        color: Color.fromRGBO(0, 0, 0, 0.05),
         blurRadius: 20,
         offset: const Offset(0, 10),
       ),
