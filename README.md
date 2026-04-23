@@ -6,7 +6,7 @@ Zervi is a premium service marketplace app for Posadas, Misiones, built with **F
 - **Antigravity UI**: Modern, premium design with high-radius cards and soft shadows.
 - **Dual Feed**: Easily toggle between "Services" and "Jobs".
 - **Real-time Messaging**: Instant communication between clients and professionals via Supabase.
-- **Cross-platform**: Support for Windows, Web, and Mobile.
+- **Cross-platform**: Support for Web, and Mobile.
 
 ## Tech Stack
 - **Framework**: Flutter
