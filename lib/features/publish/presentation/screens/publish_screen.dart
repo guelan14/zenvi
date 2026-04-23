@@ -1,34 +1,44 @@
+import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
+import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 
-class PublishScreen extends StatefulWidget {
+class PublishScreen extends ConsumerStatefulWidget {
   final ListingType initialType;
-
   const PublishScreen({super.key, this.initialType = ListingType.service});
 
   @override
-  State<PublishScreen> createState() => _PublishScreenState();
+  ConsumerState<PublishScreen> createState() => _PublishScreenState();
 }
 
-class _PublishScreenState extends State<PublishScreen> {
+class _PublishScreenState extends ConsumerState<PublishScreen> {
+  bool _isLoading = false;
   int _currentStep = 0;
+  static const int _totalSteps = 4;
   late ListingType _type;
 
-  // Step 1
+  // Fields
   final _titleController = TextEditingController();
   String? _selectedCategory;
-
-  // Step 2
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-  WorkMode _workMode = WorkMode.presencial;
-
-  // Step 3
-  final List<String> _images = [];
+  WorkMode? _workMode;
   final _locationController = TextEditingController();
+  double? _lat;
+  double? _lng;
 
-  // Step 4 - Availability
-  final Map<int, List<_TimeSlot>> _availability = {};
+  // Map & Location
+  final MapController _mapController = MapController();
+  bool _isSearchingLocation = false;
+  List<dynamic> _locationSuggestions = [];
 
   static const List<String> _categories = [
     'Limpieza y Mantenimiento',
@@ -39,10 +49,7 @@ class _PublishScreenState extends State<PublishScreen> {
     'Clases Particulares',
     'Programación y Diseño',
     'Gastronomía',
-  ];
-
-  static const List<String> _days = [
-    'Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'
+    'Otros',
   ];
 
   @override
@@ -62,91 +69,39 @@ class _PublishScreenState extends State<PublishScreen> {
 
   bool get _isService => _type == ListingType.service;
 
-  int get _totalSteps => _isService ? 4 : 3;
-
-  Widget _buildStepIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        children: List.generate(_totalSteps, (i) {
-          final isActive = i == _currentStep;
-          final isDone = i < _currentStep;
-          return Expanded(
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: isDone || isActive ? Colors.black : Colors.black12,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                if (i < _totalSteps - 1) const SizedBox(width: 6),
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  // ─── STEP 0: Type + Title + Category ────────────────────────────────────────
-  Widget _buildStep0() {
+  // ─── Paso 1: Título + Categoría ─────────────────────────────────────────────
+  Widget _buildStep1() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('¿Qué vas a publicar?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _TypeChip(
-              label: '🔧  Servicio',
-              selected: _type == ListingType.service,
-              onTap: () => setState(() => _type = ListingType.service),
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: _TypeChip(
-              label: '📋  Trabajo',
-              selected: _type == ListingType.job,
-              onTap: () => setState(() => _type = ListingType.job),
-            )),
-          ],
-        ),
-        const SizedBox(height: 28),
-        _label('Título'),
-        const SizedBox(height: 8),
-        _field(
+        _buildStepTitle('Ponele un nombre', 'Un buen título llama la atención. Sé claro y directo.'),
+        const SizedBox(height: 32),
+        _buildTextField(
           controller: _titleController,
-          hint: _isService ? 'Ej: Pintura de interiores' : 'Ej: Busco plomero urgente',
-          maxLength: 60,
+          hint: _isService ? 'Ej: Electricista Matriculado 24hs' : 'Ej: Necesito flete para mudanza',
+          prefixIcon: Icons.edit_note_rounded,
+          autofocus: true,
         ),
-        const SizedBox(height: 24),
-        _label('Categoría'),
-        const SizedBox(height: 12),
+        const SizedBox(height: 40),
+        _buildSectionLabel('Categoría'),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: _categories.map((cat) {
-            final selected = _selectedCategory == cat;
-            return GestureDetector(
-              onTap: () => setState(() => _selectedCategory = cat),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: selected ? Colors.black : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: selected ? Colors.black : Colors.black12),
-                ),
-                child: Text(cat,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: selected ? Colors.white : Colors.black87,
-                  ),
-                ),
+            final isSelected = _selectedCategory == cat;
+            return ChoiceChip(
+              label: Text(cat),
+              selected: isSelected,
+              onSelected: (selected) => setState(() => _selectedCategory = selected ? cat : null),
+              selectedColor: Colors.black,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : Colors.black87,
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
+              backgroundColor: const Color(0xFFF1F1F1),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              showCheckmark: false,
             );
           }).toList(),
         ),
@@ -154,510 +109,575 @@ class _PublishScreenState extends State<PublishScreen> {
     );
   }
 
-  // ─── STEP 1: Description + Price + WorkMode ──────────────────────────────────
-  Widget _buildStep1() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label('Descripción'),
-        const SizedBox(height: 8),
-        _field(
-          controller: _descriptionController,
-          hint: _isService
-              ? 'Describí qué hacés, tu experiencia y lo que incluye el servicio...'
-              : 'Describí el problema, cuándo lo necesitás y cualquier detalle important...',
-          maxLines: 5,
-          maxLength: 500,
-        ),
-        const SizedBox(height: 24),
-        if (_isService) ...[
-          _label('Precio (opcional)'),
-          const SizedBox(height: 8),
-          _field(
-            controller: _priceController,
-            hint: 'Ej: 5000',
-            inputType: TextInputType.number,
-            prefix: const Text('\$  ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          const SizedBox(height: 24),
-          _label('Modalidad de trabajo'),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _ModeChip(label: '🏠 Presencial', value: WorkMode.presencial, current: _workMode, onTap: (v) => setState(() => _workMode = v))),
-            const SizedBox(width: 8),
-            Expanded(child: _ModeChip(label: '💻 Virtual', value: WorkMode.virtual, current: _workMode, onTap: (v) => setState(() => _workMode = v))),
-            const SizedBox(width: 8),
-            Expanded(child: _ModeChip(label: '🔀 Ambos', value: WorkMode.hybrid, current: _workMode, onTap: (v) => setState(() => _workMode = v))),
-          ]),
-        ],
-      ],
-    );
-  }
-
-  // ─── STEP 2: Images + Location ───────────────────────────────────────────────
+  // ─── Paso 2: Solo Descripción ────────────────────────────────────────────────
   Widget _buildStep2() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label('Fotos (hasta 3)'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            ...List.generate(_images.length, (i) => _imageThumb(i)),
-            if (_images.length < 3)
-              _addImageButton(),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _isService
-              ? 'Mostrá tu trabajo: antes/después, herramientas, etc.'
-              : 'Agregá fotos del problema o del lugar.',
-          style: const TextStyle(color: Colors.black45, fontSize: 13),
-        ),
-        const SizedBox(height: 28),
-        _label('Ubicación'),
-        const SizedBox(height: 8),
-        _field(
-          controller: _locationController,
-          hint: 'Ej: Barrio Villa Sarita, Posadas',
-          prefix: const Icon(Icons.location_on_outlined, size: 20, color: Colors.black45),
+        _buildStepTitle('Describí tu ${_isService ? 'servicio' : 'pedido'}', 'Cuanta más info, más chances tenés de que te contacten.'),
+        const SizedBox(height: 32),
+        _buildTextField(
+          controller: _descriptionController,
+          hint: _isService
+              ? 'Contá tu experiencia, qué incluye el servicio, zonas donde trabajás...'
+              : 'Explicá qué necesitás, cuándo, condiciones, presupuesto aproximado...',
+          maxLines: 8,
+          autofocus: true,
         ),
       ],
     );
   }
 
-  Widget _imageThumb(int index) {
-    return Container(
-      width: 90,
-      height: 90,
-      margin: const EdgeInsets.only(right: 10),
-      decoration: BoxDecoration(
-        color: const Color(0x14000000),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Stack(
-        children: [
-          Center(child: Icon(Icons.image_outlined, color: Colors.black26, size: 32)),
-          Positioned(
-            top: 4, right: 4,
-            child: GestureDetector(
-              onTap: () => setState(() => _images.removeAt(index)),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
-                child: const Icon(Icons.close, size: 12, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _addImageButton() {
-    return GestureDetector(
-      onTap: () {
-        // TODO: integrate image_picker
-        setState(() => _images.add('placeholder_${_images.length}'));
-      },
-      child: Container(
-        width: 90,
-        height: 90,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12, style: BorderStyle.solid),
-        ),
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_photo_alternate_outlined, size: 28, color: Colors.black45),
-            SizedBox(height: 4),
-            Text('Agregar', style: TextStyle(fontSize: 11, color: Colors.black45)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── STEP 3: Availability (solo servicios) ───────────────────────────────────
+  // ─── Paso 3: Precio + Modalidad ─────────────────────────────────────────────
   Widget _buildStep3() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Configurá cuándo estás disponible', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 4),
-        const Text('Agregá uno o más bloques de horario para cada día.', style: TextStyle(color: Colors.black45, fontSize: 13)),
-        const SizedBox(height: 20),
-        ...List.generate(7, (dayIndex) {
-          final slots = _availability[dayIndex] ?? [];
-          final expanded = slots.isNotEmpty;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
+        _buildStepTitle('Precio y Modalidad', 'Estos datos ayudan a filtrar y encontrarte más fácil.'),
+        const SizedBox(height: 32),
+        _buildSectionLabel('Precio sugerido (opcional)'),
+        _buildTextField(
+          controller: _priceController,
+          hint: 'Ej: 5000',
+          inputType: TextInputType.number,
+          prefixIcon: Icons.payments_outlined,
+        ),
+        const SizedBox(height: 40),
+        _buildSectionLabel('¿Cómo trabajás?'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildModeButton(WorkMode.presencial, Icons.person_pin_circle_outlined, 'Presencial'),
+            const SizedBox(width: 12),
+            _buildModeButton(WorkMode.virtual, Icons.laptop_mac_rounded, 'Virtual'),
+            const SizedBox(width: 12),
+            _buildModeButton(WorkMode.hybrid, Icons.all_inclusive_rounded, 'Híbrido'),
+          ],
+        ),
+        const SizedBox(height: 24),
+        if (_workMode != null)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: expanded ? Colors.black : Colors.black12),
+              color: const Color(0xFFF1F1F1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
-              children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    setState(() {
-                      if (slots.isEmpty) {
-                        _availability[dayIndex] = [_TimeSlot(TimeOfDay(hour: 9, minute: 0), TimeOfDay(hour: 17, minute: 0))];
-                      } else {
-                        _availability.remove(dayIndex);
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40, height: 40,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: expanded ? Colors.black : const Color(0x14000000),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(_days[dayIndex],
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: expanded ? Colors.white : Colors.black,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: expanded
-                            ? Text('${slots.length} bloque${slots.length > 1 ? 's' : ''}',
-                                style: const TextStyle(fontWeight: FontWeight.w600))
-                            : const Text('No disponible', style: TextStyle(color: Colors.black38)),
-                        ),
-                        Icon(expanded ? Icons.expand_less : Icons.add, color: Colors.black45),
-                      ],
-                    ),
-                  ),
-                ),
-                if (expanded) ...[
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        ...slots.asMap().entries.map((e) => _buildSlotRow(dayIndex, e.key, e.value)),
-                        TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _availability[dayIndex]!.add(_TimeSlot(const TimeOfDay(hour: 9, minute: 0), const TimeOfDay(hour: 17, minute: 0)));
-                            });
-                          },
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('Agregar bloque'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+            child: Text(
+              _workMode == WorkMode.presencial
+                  ? '🏠 Vas al lugar del cliente o el cliente viene a vos.'
+                  : _workMode == WorkMode.virtual
+                      ? '💻 Todo por videollamada, chat o de forma remota.'
+                      : '🔄 Podés trabajar tanto presencial como de forma remota.',
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
             ),
-          );
-        }),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F1F1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              '👆 Elegí una opción para continuar.',
+              style: TextStyle(color: Colors.black38, fontSize: 13),
+            ),
+        ),
       ],
     );
   }
 
-  Widget _buildSlotRow(int dayIndex, int slotIndex, _TimeSlot slot) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _TimeButton(
-              time: slot.start,
-              onTap: () async {
-                final picked = await showTimePicker(context: context, initialTime: slot.start);
-                if (picked != null) setState(() => slot.start = picked);
+  // ─── Paso 4: Ubicación + Mapa ────────────────────────────────────────────────
+  Widget _buildStep4() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepTitle('¿Dónde trabajás?', 'Podés escribir cualquier ciudad, barrio o zona.'),
+        const SizedBox(height: 32),
+
+        // Campo de texto libre — acepta cualquier cosa
+        _buildTextField(
+          controller: _locationController,
+          hint: 'Ej: Posadas, Barrio Centro, GBA...',
+          prefixIcon: Icons.location_city_rounded,
+          suffix: _isSearchingLocation
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : (_locationController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18, color: Colors.black38),
+                      onPressed: () {
+                        _locationController.clear();
+                        setState(() => _locationSuggestions = []);
+                      },
+                    )
+                  : null),
+          onChanged: (val) {
+            if (val.length > 2) _searchLocationSuggestions(val);
+            if (val.isEmpty) setState(() => _locationSuggestions = []);
+          },
+        ),
+
+        // Sugerencias (ayuda opcional)
+        if (_locationSuggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 15)],
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _locationSuggestions.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+              itemBuilder: (context, index) {
+                final s = _locationSuggestions[index];
+                final address = s['address'] as Map<String, dynamic>? ?? {};
+                final city = (s['name'] ?? '').toString();
+                final state = (address['state'] ?? '').toString();
+                final displayText = state.isNotEmpty ? '$city, $state' : city;
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.location_on_outlined, size: 18, color: Colors.black38),
+                  title: Text(displayText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  onTap: () {
+                    setState(() {
+                      _locationController.text = displayText;
+                      _lat = double.parse(s['lat']);
+                      _lng = double.parse(s['lon']);
+                      _locationSuggestions = [];
+                    });
+                    _mapController.move(LatLng(_lat!, _lng!), 13.0);
+                    FocusScope.of(context).unfocus();
+                  },
+                );
               },
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text('→', style: TextStyle(fontWeight: FontWeight.bold)),
+
+        const SizedBox(height: 24),
+
+        // Banner informativo del pin
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _lat != null
+                ? const Color(0xFF10B981).withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
           ),
-          Expanded(
-            child: _TimeButton(
-              time: slot.end,
-              onTap: () async {
-                final picked = await showTimePicker(context: context, initialTime: slot.end);
-                if (picked != null) setState(() => slot.end = picked);
-              },
+          child: Row(
+            children: [
+              Icon(
+                _lat != null ? Icons.location_on_rounded : Icons.info_outline_rounded,
+                size: 18,
+                color: _lat != null ? const Color(0xFF10B981) : Colors.black38,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _lat != null
+                      ? 'Ubicación marcada. Vas a aparecer en el mapa.'
+                      : 'Opcional: marcá tu posición en el mapa para que te encuentren más fácil.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _lat != null ? const Color(0xFF10B981) : Colors.black38,
+                    fontWeight: _lat != null ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // GPS: abajo del banner, como corresponde
+        GestureDetector(
+          onTap: _getCurrentLocation,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.my_location_rounded, size: 18, color: Colors.black54),
+                SizedBox(width: 8),
+                Text('Usar mi ubicación actual', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black54)),
+              ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.black38),
-            onPressed: () {
-              setState(() {
-                _availability[dayIndex]!.removeAt(slotIndex);
-                if (_availability[dayIndex]!.isEmpty) _availability.remove(dayIndex);
-              });
-            },
+        ),
+
+        const SizedBox(height: 12),
+
+        // Mapa
+        Container(
+          height: 220,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
           ),
-        ],
-      ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: LatLng(_lat ?? -27.3671, _lng ?? -55.8961),
+                initialZoom: 12.0,
+                onTap: (_, point) => setState(() {
+                  _lat = point.latitude;
+                  _lng = point.longitude;
+                }),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.zenvi',
+                ),
+                if (_lat != null && _lng != null)
+                  MarkerLayer(markers: [
+                    Marker(
+                      point: LatLng(_lat!, _lng!),
+                      width: 40,
+                      height: 40,
+                      child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                    ),
+                  ]),
+              ],
+            ),
+          ),
+        ),
+
+        // Quitar pin
+        if (_lat != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: GestureDetector(
+              onTap: () => setState(() { _lat = null; _lng = null; }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close, size: 16, color: Colors.red),
+                    SizedBox(width: 6),
+                    Text('Quitar pin del mapa', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
-  // ─── UI Helpers ──────────────────────────────────────────────────────────────
-  Widget _label(String text) => Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15));
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  Widget _field({
-    required TextEditingController controller,
-    required String hint,
-    int maxLines = 1,
-    int? maxLength,
-    TextInputType inputType = TextInputType.text,
-    Widget? prefix,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: TextField(
-        controller: controller,
-        maxLines: maxLines,
-        maxLength: maxLength,
-        keyboardType: inputType,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black38),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
-          prefixIcon: prefix != null ? Padding(padding: const EdgeInsets.only(left: 14), child: prefix) : null,
-          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-          counterStyle: const TextStyle(color: Colors.black38, fontSize: 11),
+  Widget _buildStepTitle(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+        const SizedBox(height: 8),
+        Text(subtitle, style: const TextStyle(color: Colors.black45, fontSize: 14)),
+      ],
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 2),
+      child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black38, letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _buildModeButton(WorkMode mode, IconData icon, String label) {
+    final isSelected = _workMode != null && _workMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _workMode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.black : const Color(0xFFF1F1F1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: isSelected ? Colors.white : Colors.black38, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : Colors.black38,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ─── Navigation ──────────────────────────────────────────────────────────────
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    IconData? prefixIcon,
+    Widget? suffix,
+    int maxLines = 1,
+    TextInputType inputType = TextInputType.text,
+    Function(String)? onChanged,
+    bool autofocus = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F1F1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: inputType,
+        autofocus: autofocus,
+        onChanged: (val) {
+          setState(() {});
+          if (onChanged != null) onChanged(val);
+        },
+        style: const TextStyle(fontSize: 15, color: Colors.black87),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 20, color: Colors.black26) : null,
+          suffixIcon: suffix,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Activá el GPS en tu dispositivo.')),
+        );
+        return;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permiso de ubicación denegado. Habilitalo en Configuración.')),
+        );
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _lat = position.latitude;
+        _lng = position.longitude;
+      });
+      _mapController.move(LatLng(_lat!, _lng!), 14.0);
+    } catch (e) {
+      debugPrint('Error GPS: $e');
+    }
+  }
+
+  Future<void> _searchLocationSuggestions(String query) async {
+    setState(() => _isSearchingLocation = true);
+    try {
+      final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5&addressdetails=1&countrycodes=ar&featuretype=settlement');
+      final response = await http.get(url, headers: {'User-Agent': 'ZerviApp'});
+      if (response.statusCode == 200) {
+        setState(() => _locationSuggestions = json.decode(response.body));
+      }
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      setState(() => _isSearchingLocation = false);
+    }
+  }
+
   bool _canGoNext() {
     switch (_currentStep) {
       case 0: return _titleController.text.trim().isNotEmpty && _selectedCategory != null;
       case 1: return _descriptionController.text.trim().isNotEmpty;
-      case 2: return _locationController.text.trim().isNotEmpty;
+      case 2: return _workMode != null; // Modalidad es obligatoria
+      case 3: return _locationController.text.trim().isNotEmpty; // Pin en mapa es opcional
       default: return true;
     }
   }
 
-  void _handlePublish() {
-    // TODO: connect to Supabase datasource
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('✅ ${_isService ? 'Servicio' : 'Trabajo'} publicado correctamente'),
-        backgroundColor: Colors.black,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-    Navigator.of(context).pop();
+  Future<void> _handlePublish() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) { context.push('/auth'); return; }
+    setState(() => _isLoading = true);
+    try {
+      final categoryResponse = await Supabase.instance.client
+          .from('categories')
+          .select('id')
+          .ilike('name', _selectedCategory!)
+          .maybeSingle();
+      if (categoryResponse == null) throw 'Categoría "$_selectedCategory" no encontrada en la base de datos.';
+      final categoryId = categoryResponse['id'];
+      final listingData = {
+        'author_id': user.id,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'category_id': categoryId,
+        'type': _type.name,
+        'work_mode': _workMode!.name,
+        'price': _priceController.text.isNotEmpty ? double.tryParse(_priceController.text) : null,
+        'location': _locationController.text.trim(),
+        'lat': _lat,
+        'lng': _lng,
+        'status': 'active',
+      };
+      await ref.read(listingRepositoryProvider).createListing(listingData);
+      if (mounted) {
+        ref.invalidate(listingsProvider);
+        context.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Publicado correctamente'), backgroundColor: Colors.black),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text(_isService ? 'Ofrecer Servicio' : 'Publicar Trabajo'),
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_currentStep > 0) {
-              setState(() => _currentStep--);
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
+          icon: const Icon(Icons.close, color: Colors.black54),
+          onPressed: () => context.pop(),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '${_currentStep + 1} / $_totalSteps',
-                style: const TextStyle(color: Colors.black45, fontWeight: FontWeight.w600),
-              ),
+        title: Text(
+          _isService ? 'Publicar Servicio' : 'Pedir Trabajo',
+          style: const TextStyle(color: Colors.black87, fontSize: 17, fontWeight: FontWeight.bold),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: List.generate(_totalSteps, (i) => Expanded(
+                child: Container(
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: i <= _currentStep ? Colors.black : const Color(0xFFEEEEEE),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              )),
             ),
           ),
-        ],
+        ),
       ),
       body: Column(
         children: [
-          _buildStepIndicator(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: KeyedSubtree(
-                  key: ValueKey(_currentStep),
-                  child: switch (_currentStep) {
-                    0 => _buildStep0(),
-                    1 => _buildStep1(),
-                    2 => _buildStep2(),
-                    3 => _buildStep3(),
-                    _ => const SizedBox(),
-                  },
-                ),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: _currentStep == 0 ? _buildStep1()
+                  : _currentStep == 1 ? _buildStep2()
+                  : _currentStep == 2 ? _buildStep3()
+                  : _buildStep4(),
+            ),
+          ),
+          // Botón fijo en la parte inferior, NO afectado por el teclado
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: Row(
+                children: [
+                  if (_currentStep > 0)
+                    GestureDetector(
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        setState(() => _currentStep--);
+                      },
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F1F1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.black54),
+                      ),
+                    ),
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _canGoNext()
+                            ? () {
+                                FocusScope.of(context).unfocus();
+                                if (_currentStep < _totalSteps - 1) {
+                                  setState(() => _currentStep++);
+                                } else {
+                                  _handlePublish();
+                                }
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFFF1F1F1),
+                          disabledForegroundColor: Colors.black26,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                            : Text(
+                                _currentStep == _totalSteps - 1 ? 'Publicar' : 'Siguiente →',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          _buildBottomBar(),
         ],
       ),
     );
   }
-
-  Widget _buildBottomBar() {
-    final isLast = _currentStep == _totalSteps - 1;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.black12)),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: _canGoNext()
-              ? () {
-                  if (isLast) {
-                    _handlePublish();
-                  } else {
-                    setState(() => _currentStep++);
-                  }
-                }
-              : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.black12,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: Text(
-            isLast ? '✓  Publicar' : 'Continuar',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Helper Widgets ─────────────────────────────────────────────────────────
-
-class _TypeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _TypeChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? Colors.black : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? Colors.black : Colors.black12),
-        ),
-        child: Text(label,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            color: selected ? Colors.white : Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ModeChip extends StatelessWidget {
-  final String label;
-  final WorkMode value;
-  final WorkMode current;
-  final ValueChanged<WorkMode> onTap;
-  const _ModeChip({required this.label, required this.value, required this.current, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = value == current;
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? Colors.black : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? Colors.black : Colors.black12),
-        ),
-        child: Text(label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-            color: selected ? Colors.white : Colors.black87,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TimeButton extends StatelessWidget {
-  final TimeOfDay time;
-  final VoidCallback onTap;
-  const _TimeButton({required this.time, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final formatted = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F0F0),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(formatted,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-      ),
-    );
-  }
-}
-
-class _TimeSlot {
-  TimeOfDay start;
-  TimeOfDay end;
-  _TimeSlot(this.start, this.end);
 }
