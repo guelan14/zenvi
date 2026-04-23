@@ -1,15 +1,53 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/core/shell/main_shell.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/auth/presentation/screens/auth_screen.dart';
 import 'package:zenvi/features/home/presentation/screens/home_screen.dart';
+import 'package:zenvi/features/home/presentation/screens/listing_detail_screen.dart';
+import 'package:zenvi/features/home/presentation/screens/map_screen.dart';
 import 'package:zenvi/features/messages/presentation/screens/messages_screen.dart';
 import 'package:zenvi/features/publish/presentation/screens/publish_screen.dart';
 import 'package:zenvi/features/profile/presentation/screens/profile_screen.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 
+/// Routes that require authentication. Unauthenticated access redirects to /auth.
+const _protectedRoutes = {'/messages', '/profile/me'};
+
+// ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────
+
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier(Ref ref) {
+    ref.listen<bool>(isAuthenticatedProvider, (prev, next) => notifyListeners());
+  }
+}
+
+// ─── Router Provider ──────────────────────────────────────────────────────────
+
 final routerProvider = Provider<GoRouter>((ref) {
+  final notifier = _AuthNotifier(ref);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: notifier,
+    redirect: (context, state) {
+      final isAuthenticated = ref.read(isAuthenticatedProvider);
+      final location = state.matchedLocation;
+
+      // Not authenticated + protected route → send to /auth
+      if (!isAuthenticated && _protectedRoutes.contains(location)) {
+        return '/auth?redirect=${Uri.encodeComponent(location)}';
+      }
+
+      // Already authenticated + going to /auth → send to destination
+      if (isAuthenticated && location == '/auth') {
+        final redirectTo = state.uri.queryParameters['redirect'];
+        return redirectTo != null ? Uri.decodeComponent(redirectTo) : '/profile/me';
+      }
+
+      return null;
+    },
     routes: [
       // ─── Shell with persistent Bottom Nav ─────────────────────────────────
       ShellRoute(
@@ -18,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/',
             builder: (context, state) => const HomeScreen(),
+          ),
+          GoRoute(
+            path: '/map',
+            builder: (context, state) => const MapScreen(),
           ),
           GoRoute(
             path: '/messages',
@@ -29,7 +71,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // ─── Full-screen routes (no bottom nav) ───────────────────────────────
+
+      // ─── Auth (full-screen, no bottom nav) ──────────────────────────────
+      GoRoute(
+        path: '/auth',
+        builder: (context, state) {
+          final redirect = state.uri.queryParameters['redirect'];
+          return AuthScreen(
+            redirectTo: redirect != null ? Uri.decodeComponent(redirect) : null,
+          );
+        },
+      ),
+
+      // ─── Other full-screen routes ────────────────────────────────────────
       GoRoute(
         path: '/publish',
         builder: (context, state) {
@@ -44,6 +98,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return ProfileScreen(profileId: id);
+        },
+      ),
+      GoRoute(
+        path: '/listing/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ListingDetailScreen(listingId: id);
         },
       ),
     ],
