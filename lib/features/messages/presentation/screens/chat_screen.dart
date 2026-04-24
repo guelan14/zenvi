@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/appointments/domain/models/appointment.dart';
+import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
+import 'package:uuid/uuid.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Listing listing;
@@ -119,9 +123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              // TODO: Abrir selector de turnos
-            },
+            onPressed: () => _showRequestAppointment(context, ref),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
@@ -224,5 +226,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Iniciá sesión para solicitar un turno')),
+      );
+      return;
+    }
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+
+    if (date == null) return;
+
+    if (!mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
+
+    if (time == null) return;
+
+    final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final end = start.add(const Duration(hours: 1)); // Default 1 hour
+
+    final appointment = Appointment(
+      id: const Uuid().v4(),
+      listingId: widget.listing.id,
+      customerId: user.id,
+      professionalId: widget.listing.userId,
+      startTime: start,
+      endTime: end,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      await ref.read(appointmentRepositoryProvider).createAppointment(appointment);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Turno solicitado con éxito'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al solicitar turno: $e')),
+      );
+    }
   }
 }
