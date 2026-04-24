@@ -301,7 +301,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         ),
         const SizedBox(width: 12),
         const Text(
-          'Zenvi',
+          'Zervi',
           style: TextStyle(
             color: Colors.white,
             fontSize: 22,

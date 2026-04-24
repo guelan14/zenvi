@@ -7,6 +7,7 @@ class Profile {
   final String? phone;
   final double ratingAvg;
   final int reviewCount;
+  final bool acceptsEmergencies;
   final DateTime createdAt;
 
   Profile({
@@ -18,6 +19,7 @@ class Profile {
     this.phone,
     this.ratingAvg = 0,
     this.reviewCount = 0,
+    this.acceptsEmergencies = false,
     required this.createdAt,
   });
 
@@ -31,6 +33,7 @@ class Profile {
       phone: json['phone'],
       ratingAvg: (json['rating_avg'] as num? ?? 0).toDouble(),
       reviewCount: json['review_count'] ?? 0,
+      acceptsEmergencies: json['accepts_emergencies'] ?? false,
       createdAt: DateTime.parse(json['created_at']),
     );
   }
@@ -43,6 +46,7 @@ class Profile {
       'bio': bio,
       'location': location,
       'phone': phone,
+      'accepts_emergencies': acceptsEmergencies,
     };
   }
 }

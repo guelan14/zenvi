@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
+import 'package:zenvi/shared/widgets/weekly_availability_grid.dart';
 
 class ListingDetailScreen extends ConsumerWidget {
   final String listingId;
@@ -14,22 +15,20 @@ class ListingDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Aquí deberíamos tener un provider para obtener un listing específico por ID
-    // Por ahora, como es para probar, vamos a buscarlo en la lista cargada o mostrar un cargando
-    final listingsAsync = ref.watch(listingsProvider(null)); // Traemos todos para buscar
+    final listingsAsync = ref.watch(listingsProvider(null));
+    // Cargamos la disponibilidad específica de este servicio
+    final availabilityAsync = ref.watch(availabilityProvider(listingId));
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: listingsAsync.when(
-        data: (listings) {
-          final listing = listings.firstWhere(
-            (l) => l.id == listingId,
-            orElse: () => throw Exception('Servicio no encontrado'),
-          );
+    return listingsAsync.when(
+      data: (listings) {
+        final listing = listings.firstWhere(
+          (l) => l.id == listingId,
+          orElse: () => throw Exception('Servicio no encontrado'),
+        );
 
-          final authorAsync = ref.watch(profileProvider(listing.authorId));
-
-          return CustomScrollView(
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: CustomScrollView(
             slivers: [
               // ─── Header con Imagen ──────────────────────────────────────────
               SliverAppBar(
@@ -52,11 +51,16 @@ class ListingDetailScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           _buildBadge(listing.type == ListingType.service ? 'SERVICIO' : 'PEDIDO'),
-                          const SizedBox(width: 8),
                           _buildWorkModeBadge(listing.workMode),
+                          if (listing.category != null)
+                            _buildCategoryBadge(listing.category!.toUpperCase()),
+                          if (listing.acceptsEmergencies)
+                            _buildEmergencyBadge(),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -65,7 +69,31 @@ class ListingDetailScreen extends ConsumerWidget {
                         style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
                       ),
                       const SizedBox(height: 8),
-                      if (listing.location != null)
+                      if (listing.city != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, size: 16, color: Colors.black54),
+                                const SizedBox(width: 4),
+                                Text(
+                                  listing.city!,
+                                  style: const TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            if (listing.address != null && listing.address!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 20, top: 2),
+                                child: Text(
+                                  listing.address!,
+                                  style: const TextStyle(color: Colors.black45, fontSize: 13),
+                                ),
+                              ),
+                          ],
+                        )
+                      else if (listing.location != null)
                         Row(
                           children: [
                             const Icon(Icons.location_on_outlined, size: 16, color: Colors.black54),
@@ -86,6 +114,21 @@ class ListingDetailScreen extends ConsumerWidget {
                           '\$${listing.price!.toStringAsFixed(0)}',
                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.green),
                         ),
+                      
+                      // ─── Nueva Sección: Disponibilidad ────────────────────────────
+                      if (listing.type == ListingType.service) ...[
+                        const SizedBox(height: 32),
+                        const Text('Disponibilidad', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        availabilityAsync.when(
+                          data: (slots) => slots.isNotEmpty 
+                            ? WeeklyAvailabilityGrid(slots: slots)
+                            : const Text('Consultar disponibilidad por chat.', style: TextStyle(color: Colors.black45, fontSize: 14)),
+                          loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          error: (err, _) => const Text('Error al cargar disponibilidad'),
+                        ),
+                      ],
+
                       const SizedBox(height: 24),
                       const Divider(),
                       const SizedBox(height: 32),
@@ -112,7 +155,7 @@ class ListingDetailScreen extends ConsumerWidget {
                               options: MapOptions(
                                 initialCenter: LatLng(listing.lat!, listing.lng!),
                                 initialZoom: 15.0,
-                                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none), // Estático
+                                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
                               ),
                               children: [
                                 ColorFiltered(
@@ -124,7 +167,7 @@ class ListingDetailScreen extends ConsumerWidget {
                                   ]),
                                   child: TileLayer(
                                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                    userAgentPackageName: 'com.zenvi.app',
+                                    userAgentPackageName: 'com.Zervi.app',
                                   ),
                                 ),
                                 MarkerLayer(
@@ -148,33 +191,33 @@ class ListingDetailScreen extends ConsumerWidget {
                 ),
               ),
             ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-      ),
-      bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: ElevatedButton(
-            onPressed: () {
-              // TODO: Abrir chat
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            child: const Text('Contactar ahora', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
-        ),
-      ),
+          bottomSheet: Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: () {
+                  context.push('/chat/${listing.id}');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Contactar ahora', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
+        );
+      },
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
     );
   }
 
@@ -192,6 +235,29 @@ class ListingDetailScreen extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
       child: Text(label, style: const TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildCategoryBadge(String category) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+      child: Text(category, style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildEmergencyBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.flash_on, color: Colors.red, size: 12),
+          SizedBox(width: 4),
+          Text('URGENCIAS', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 }

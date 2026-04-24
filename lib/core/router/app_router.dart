@@ -10,16 +10,22 @@ import 'package:zenvi/features/home/presentation/screens/map_screen.dart';
 import 'package:zenvi/features/messages/presentation/screens/messages_screen.dart';
 import 'package:zenvi/features/publish/presentation/screens/publish_screen.dart';
 import 'package:zenvi/features/profile/presentation/screens/profile_screen.dart';
+import 'package:zenvi/features/appointments/presentation/screens/appointments_screen.dart';
+import 'package:zenvi/features/messages/presentation/screens/chat_screen.dart';
+import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 
 /// Routes that require authentication. Unauthenticated access redirects to /auth.
-const _protectedRoutes = {'/messages', '/profile/me'};
+const _protectedRoutes = {'/messages', '/profile/me', '/agenda', '/chat'};
 
 // ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(Ref ref) {
-    ref.listen<bool>(isAuthenticatedProvider, (prev, next) => notifyListeners());
+    ref.listen<bool>(
+      isAuthenticatedProvider,
+      (prev, next) => notifyListeners(),
+    );
   }
 }
 
@@ -36,14 +42,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
 
       // Not authenticated + protected route → send to /auth
-      if (!isAuthenticated && _protectedRoutes.contains(location)) {
+      if (!isAuthenticated && _protectedRoutes.any((route) => location.startsWith(route))) {
         return '/auth?redirect=${Uri.encodeComponent(location)}';
       }
 
       // Already authenticated + going to /auth → send to destination
       if (isAuthenticated && location == '/auth') {
         final redirectTo = state.uri.queryParameters['redirect'];
-        return redirectTo != null ? Uri.decodeComponent(redirectTo) : '/profile/me';
+        return redirectTo != null
+            ? Uri.decodeComponent(redirectTo)
+            : '/profile/me';
       }
 
       return null;
@@ -53,13 +61,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
+          GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+          GoRoute(path: '/map', builder: (context, state) => const MapScreen()),
           GoRoute(
-            path: '/',
-            builder: (context, state) => const HomeScreen(),
-          ),
-          GoRoute(
-            path: '/map',
-            builder: (context, state) => const MapScreen(),
+            path: '/agenda',
+            builder: (context, state) => const AppointmentsScreen(),
           ),
           GoRoute(
             path: '/messages',
@@ -105,6 +111,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return ListingDetailScreen(listingId: id);
+        },
+      ),
+      GoRoute(
+        path: '/chat/:id',
+        builder: (context, state) {
+          final listingId = state.pathParameters['id']!;
+          final listings = ref.read(listingsProvider(null)).value ?? [];
+          final listing = listings.firstWhere(
+            (l) => l.id == listingId,
+            orElse: () => Listing(
+              id: listingId,
+              authorId: '',
+              title: 'Cargando...',
+              description: '',
+              type: ListingType.service,
+              createdAt: DateTime.now(),
+            ),
+          );
+          return ChatScreen(listing: listing);
         },
       ),
     ],

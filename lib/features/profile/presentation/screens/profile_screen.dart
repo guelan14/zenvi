@@ -4,246 +4,303 @@ import 'package:go_router/go_router.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/domain/models/profile.dart';
-import 'package:zenvi/shared/domain/models/availability.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
+import 'package:zenvi/shared/domain/models/availability.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final String profileId;
-
   const ProfileScreen({super.key, required this.profileId});
-
-  static const List<String> _dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-  bool get _isOwnProfile => profileId == 'me';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Si el profileId es 'me', usamos el provider de perfil con 'me'
     final profileAsync = ref.watch(profileProvider(profileId));
+    final listingsAsync = ref.watch(profileListingsProvider(profileId));
     final currentUser = ref.watch(currentUserProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Colors.white,
       body: profileAsync.when(
         data: (profile) {
-          if (profile == null && !_isOwnProfile) {
+          if (profile == null) {
             return const Center(child: Text('Perfil no encontrado'));
           }
-          
-          // If profile is null but it's "me", we might still be loading or auth failed
-          final effectiveProfile = profile;
+
+          final isMe = profileId == 'me' || profile.id == currentUser?.id;
 
           return CustomScrollView(
             slivers: [
-              // ─── Header ───────────────────────────────────────────────────────
+              // ─── Header ────────────────────────────────────────────────────────
               SliverAppBar(
-                expandedHeight: 220,
+                expandedHeight: 280,
                 pinned: true,
-                backgroundColor: Colors.white,
-                leading: _isOwnProfile
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
+                backgroundColor: Colors.black,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => context.pop(),
+                ),
                 actions: [
-                  if (_isOwnProfile && currentUser != null)
+                  if (isMe)
                     IconButton(
-                      tooltip: 'Cerrar sesión',
-                      icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: Colors.white,
+                      ),
                       onPressed: () => _confirmSignOut(context, ref),
                     ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF1a1a1a), Color(0xFF3d3d3d)],
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (profile.avatarUrl != null)
+                        Image.network(profile.avatarUrl!, fit: BoxFit.cover)
+                      else
+                        Container(color: Colors.black87),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.8),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                      Positioned(
+                        bottom: 24,
+                        left: 24,
+                        right: 24,
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Container(
-                                  width: 72,
-                                  height: 72,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white24,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                  child: const Icon(Icons.person, color: Colors.white, size: 38),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        effectiveProfile?.fullName ?? (currentUser?.email ?? 'Usuario'),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.location_on_outlined, color: Colors.white70, size: 14),
-                                          const SizedBox(width: 2),
-                                          Flexible(
-                                            child: Text(
-                                              effectiveProfile?.location ?? 'Posadas, Misiones',
-                                              style: const TextStyle(color: Colors.white70, fontSize: 13),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              profile.fullName ?? 'Usuario',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                _buildStat('⭐', (effectiveProfile?.ratingAvg ?? 0).toStringAsFixed(1), 'Calificación'),
-                                _buildStatDivider(),
-                                _buildStat('✍️', '${effectiveProfile?.reviewCount ?? 0}', 'Reseñas'),
-                                _buildStatDivider(),
-                                _buildStat('📅', effectiveProfile != null ? _sinceText(effectiveProfile.createdAt) : '-', 'En Zenvi'),
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  color: Colors.white70,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  profile.location ?? 'Posadas, Misiones',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
 
+              // ─── Estadísticas ──────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Container(
+                  color: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStat(
+                        '⭐',
+                        profile.ratingAvg.toStringAsFixed(1),
+                        'Rating',
+                      ),
+                      _buildStatDivider(),
+                      _buildStat(
+                        '💼',
+                        profile.reviewCount.toString(),
+                        'Trabajos',
+                      ),
+                      _buildStatDivider(),
+                      _buildStat('📅', _sinceText(profile.createdAt), 'Zervi'),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ─── Contenido ─────────────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ─── Bio ──────────────────────────────────────────────────
-                      if (effectiveProfile?.bio != null) ...[
-                        const _SectionTitle('Sobre mí'),
-                        const SizedBox(height: 8),
-                        Text(effectiveProfile!.bio!, style: const TextStyle(color: Colors.black87, height: 1.5, fontSize: 14)),
-                        const SizedBox(height: 28),
-                      ] else if (_isOwnProfile) ...[
-                        const _SectionTitle('Sobre mí'),
-                        const SizedBox(height: 8),
-                        const Text('Aún no agregaste una descripción a tu perfil.', style: TextStyle(color: Colors.black38, fontSize: 14)),
-                        const SizedBox(height: 28),
-                      ],
-
-                      // ─── Actions (only for other profiles) ───────────────────
-                      if (!_isOwnProfile) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _ActionButton(
-                                icon: Icons.chat_bubble_outline,
-                                label: 'Enviar mensaje',
-                                primary: true,
-                                onTap: () {
-                                  // TODO: navigate to chat
-                                },
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const _SectionTitle('Sobre mí'),
+                          if (isMe)
+                            TextButton.icon(
+                              onPressed: () {},
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              label: const Text('Editar'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.black54,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            if (effectiveProfile?.phone != null)
-                              _ActionButton(
-                                icon: Icons.phone_outlined,
-                                label: '',
-                                primary: false,
-                                onTap: () {
-                                  // TODO: launch phone
-                                },
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                      ],
-
-                      // ─── Edit profile button (own profile) ───────────────────
-                      if (_isOwnProfile) ...[
-                        _ActionButton(
-                          icon: Icons.edit_outlined,
-                          label: 'Editar perfil',
-                          primary: false,
-                          onTap: () {
-                            // TODO: navigate to edit profile
-                          },
-                        ),
-                        const SizedBox(height: 32),
-                      ],
-
-                      // ─── Rating ───────────────────────────────────────────────
-                      const _SectionTitle('Calificación'),
+                        ],
+                      ),
                       const SizedBox(height: 12),
-                      ZerviCard(
-                        child: Row(
-                          children: [
-                            Text(
-                              (effectiveProfile?.ratingAvg ?? 0).toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(width: 20),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: List.generate(
-                                    5,
-                                    (i) => Icon(
-                                      i < (effectiveProfile?.ratingAvg ?? 0).floor()
-                                          ? Icons.star_rounded
-                                          : Icons.star_border_rounded,
-                                      color: Colors.amber,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Basado en ${effectiveProfile?.reviewCount ?? 0} reseñas',
-                                  style: const TextStyle(color: Colors.black45, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ],
+                      Text(
+                        profile.bio ?? 'Sin descripción aún.',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                          height: 1.5,
                         ),
                       ),
-
-                      const SizedBox(height: 32),
-
-                      // ─── Availability ─────────────────────────────────────────
-                      const _SectionTitle('Disponibilidad'),
-                      const SizedBox(height: 12),
-                      const Text('Sin horarios configurados.', style: TextStyle(color: Colors.black38, fontSize: 14)),
+                      const SizedBox(height: 24),
 
                       const SizedBox(height: 32),
 
                       // ─── Listings ─────────────────────────────────────────────
                       const _SectionTitle('Servicios publicados'),
                       const SizedBox(height: 12),
-                      const Text('No hay servicios publicados aún.', style: TextStyle(color: Colors.black38, fontSize: 14)),
+                      listingsAsync.when(
+                        data: (listings) {
+                          if (listings.isEmpty) {
+                            return const Text(
+                              'No hay servicios publicados aún.',
+                              style: TextStyle(
+                                color: Colors.black38,
+                                fontSize: 14,
+                              ),
+                            );
+                          }
+
+                          return Column(
+                            children: listings
+                                .map(
+                                  (listing) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: ZerviCard(
+                                      onTap: () => context.push(
+                                        '/listing/${listing.id}',
+                                      ),
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        children: [
+                                          if (listing.images.isNotEmpty)
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Image.network(
+                                                listing.images.first,
+                                                width: 60,
+                                                height: 60,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          else
+                                            Container(
+                                              width: 60,
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(
+                                                  0.05,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: const Icon(
+                                                Icons.image_outlined,
+                                                color: Colors.black26,
+                                              ),
+                                            ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  listing.title,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.orange.withOpacity(0.1),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        (listing.category ?? 'Servicio').toUpperCase(),
+                                                        style: const TextStyle(
+                                                          color: Colors.orange,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.bold,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    const Icon(Icons.location_on_outlined, size: 10, color: Colors.black26),
+                                                    const SizedBox(width: 2),
+                                                    Text(
+                                                      listing.city ?? 'Posadas',
+                                                      style: const TextStyle(color: Colors.black26, fontSize: 10),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (listing.price != null)
+                                            Text(
+                                              '\$${listing.price!.toStringAsFixed(0)}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        error: (err, _) => Text('Error: $err'),
+                      ),
 
                       const SizedBox(height: 40),
                     ],
@@ -253,8 +310,9 @@ class ProfileScreen extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
       ),
     );
   }
@@ -291,9 +349,18 @@ class ProfileScreen extends ConsumerWidget {
     return Expanded(
       child: Column(
         children: [
-          Text('$emoji $value',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          Text(
+            '$emoji $value',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -301,7 +368,11 @@ class ProfileScreen extends ConsumerWidget {
 
   Widget _buildStatDivider() {
     return Container(
-        width: 1, height: 30, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 4));
+      width: 1,
+      height: 30,
+      color: Colors.white24,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+    );
   }
 
   String _sinceText(DateTime date) {
@@ -316,67 +387,9 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18));
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool primary;
-  final VoidCallback onTap;
-
-  const _ActionButton(
-      {required this.icon, required this.label, required this.primary, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 50,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: primary ? Colors.black : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: primary ? null : Border.all(color: Colors.black12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: primary ? Colors.white : Colors.black, size: 20),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Text(label,
-                  style: TextStyle(
-                      color: primary ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
-            ]
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WorkModeBadge extends StatelessWidget {
-  final WorkMode mode;
-  const _WorkModeBadge(this.mode);
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (mode) {
-      WorkMode.virtual => ('💻 Virtual', const Color(0xFF3B82F6)),
-      WorkMode.hybrid => ('🔀 Presencial + Virtual', const Color(0xFF8B5CF6)),
-      WorkMode.presencial => ('🏠 Presencial', const Color(0xFF10B981)),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+    return Text(
+      text,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
     );
   }
 }

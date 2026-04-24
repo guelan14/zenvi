@@ -8,6 +8,7 @@ class ListingRepository {
 
   Future<List<Listing>> getListings({
     ListingType? type,
+    String? authorId,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -19,22 +20,25 @@ class ListingRepository {
         query = query.eq('type', type.name);
       }
 
+      if (authorId != null) {
+        query = query.eq('author_id', authorId);
+      }
+
       query = query
           .eq('status', 'active')
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
       final response = await query;
-      print('DEBUG: Consulta completada. Registros encontrados: ${(response as List).length}');
-      
+
       return (response as List).map((json) => Listing.fromJson(json)).toList();
     } catch (e) {
-      print('DEBUG: Error en getListings: $e');
       rethrow;
     }
   }
 
-  Future<void> createListing(Map<String, dynamic> data) async {
-    await _client.from('listings').insert(data);
+  Future<Listing> createListing(Map<String, dynamic> data) async {
+    final response = await _client.from('listings').insert(data).select().single();
+    return Listing.fromJson(response);
   }
 }

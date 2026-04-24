@@ -1,4 +1,4 @@
-package com.example.zenvi
+package com.example.zervi
 
 import io.flutter.embedding.android.FlutterActivity
 

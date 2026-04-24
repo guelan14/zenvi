@@ -14,10 +14,15 @@ class Listing {
   final double? price;
   final List<String> images;
   final String? location;
+  final String? city;
+  final String? address;
   final ListingStatus status;
   final double? lat;
   final double? lng;
+  final double ratingAvg;
+  final int reviewCount;
   final DateTime createdAt;
+  final bool acceptsEmergencies;
 
   Listing({
     required this.id,
@@ -31,10 +36,15 @@ class Listing {
     this.price,
     this.images = const [],
     this.location,
+    this.city,
+    this.address,
     this.lat,
     this.lng,
     this.status = ListingStatus.active,
+    this.ratingAvg = 0,
+    this.reviewCount = 0,
     required this.createdAt,
+    this.acceptsEmergencies = false,
   });
 
   factory Listing.fromJson(Map<String, dynamic> json) {
@@ -50,10 +60,15 @@ class Listing {
       workMode: _parseWorkMode(json['work_mode']),
       images: List<String>.from(json['images'] ?? []),
       location: json['location'],
+      city: json['city'],
+      address: json['address'],
       lat: json['lat'] != null ? (json['lat'] as num).toDouble() : null,
       lng: json['lng'] != null ? (json['lng'] as num).toDouble() : null,
       status: _parseStatus(json['status']),
+      ratingAvg: (json['rating_avg'] as num? ?? 0).toDouble(),
+      reviewCount: json['review_count'] ?? 0,
       createdAt: DateTime.parse(json['created_at']),
+      acceptsEmergencies: json['accepts_emergencies'] ?? false,
     );
   }
 

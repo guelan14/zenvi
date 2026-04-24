@@ -14,8 +14,9 @@ class MainShell extends ConsumerWidget {
   int _selectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/map')) return 1;
-    if (location.startsWith('/messages')) return 2;
-    if (location.startsWith('/profile')) return 3;
+    if (location.startsWith('/agenda')) return 2;
+    if (location.startsWith('/messages')) return 3;
+    if (location.startsWith('/profile')) return 4;
     return 0;
   }
 
@@ -51,8 +52,10 @@ class MainShell extends ConsumerWidget {
                 case 1:
                   context.go('/map');
                 case 2:
-                  context.go('/messages');
+                  context.go('/agenda');
                 case 3:
+                  context.go('/messages');
+                case 4:
                   context.go('/profile/me');
               }
             },
@@ -70,6 +73,11 @@ class MainShell extends ConsumerWidget {
                 icon: Icon(Icons.map_outlined),
                 selectedIcon: Icon(Icons.map_rounded, color: Colors.white),
                 label: 'Mapa',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined),
+                selectedIcon: Icon(Icons.calendar_month_rounded, color: Colors.white),
+                label: 'Agenda',
               ),
               NavigationDestination(
                 icon: _NavIcon(

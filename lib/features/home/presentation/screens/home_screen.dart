@@ -243,6 +243,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.location_on_outlined, size: 12, color: Colors.black38),
+            const SizedBox(width: 4),
+            Text(
+              listing.city ?? listing.location ?? 'Sin ubicación',
+              style: const TextStyle(color: Colors.black38, fontSize: 11),
+            ),
+            const Spacer(),
+            if (listing.acceptsEmergencies)
+              const Icon(Icons.flash_on, size: 12, color: Colors.red),
+          ],
+        ),
       ],
     );
   }
