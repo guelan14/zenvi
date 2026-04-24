@@ -261,7 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       id: const Uuid().v4(),
       listingId: widget.listing.id,
       customerId: user.id,
-      professionalId: widget.listing.userId,
+      professionalId: widget.listing.authorId,
       startTime: start,
       endTime: end,
       createdAt: DateTime.now(),
