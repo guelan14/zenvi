@@ -7,6 +7,8 @@ import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/weekly_availability_grid.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/publish/presentation/screens/publish_screen.dart';
 
 class ListingDetailScreen extends ConsumerWidget {
   final String listingId;
@@ -18,6 +20,7 @@ class ListingDetailScreen extends ConsumerWidget {
     final listingsAsync = ref.watch(listingsProvider(null));
     // Cargamos la disponibilidad específica de este servicio
     final availabilityAsync = ref.watch(availabilityProvider(listingId));
+    final currentUserId = ref.watch(currentUserProvider)?.id;
 
     return listingsAsync.when(
       data: (listings) {
@@ -34,6 +37,30 @@ class ListingDetailScreen extends ConsumerWidget {
               SliverAppBar(
                 expandedHeight: 300,
                 pinned: true,
+                actions: [
+                  if (currentUserId == listing.authorId)
+                    Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.edit_outlined, color: Colors.black),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PublishScreen(
+                                initialType: listing.type,
+                                listingToEdit: listing,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: listing.images.isNotEmpty
                       ? _ImageSlider(images: listing.images)
@@ -192,28 +219,30 @@ class ListingDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
-          bottomSheet: Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                onPressed: () {
-                  context.push('/chat/${listing.id}');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          bottomSheet: currentUserId == listing.authorId
+              ? null
+              : Container(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        context.push('/chat/${listing.id}');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Contactar ahora', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
                 ),
-                child: const Text('Contactar ahora', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ),
         );
       },
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),

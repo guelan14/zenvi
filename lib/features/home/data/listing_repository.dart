@@ -41,4 +41,9 @@ class ListingRepository {
     final response = await _client.from('listings').insert(data).select().single();
     return Listing.fromJson(response);
   }
+
+  Future<Listing> updateListing(String id, Map<String, dynamic> data) async {
+    final response = await _client.from('listings').update(data).eq('id', id).select().single();
+    return Listing.fromJson(response);
+  }
 }

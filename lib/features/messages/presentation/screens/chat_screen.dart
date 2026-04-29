@@ -262,8 +262,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       listingId: widget.listing.id,
       customerId: user.id,
       professionalId: widget.listing.authorId,
-      startTime: start,
-      endTime: end,
+      scheduledAt: start,
       createdAt: DateTime.now(),
     );
 

@@ -5,8 +5,8 @@ class Appointment {
   final String listingId;
   final String customerId;
   final String professionalId;
-  final DateTime startTime;
-  final DateTime endTime;
+  final DateTime scheduledAt;
+  final String? notes;
   final AppointmentStatus status;
   final DateTime createdAt;
 
@@ -15,8 +15,8 @@ class Appointment {
     required this.listingId,
     required this.customerId,
     required this.professionalId,
-    required this.startTime,
-    required this.endTime,
+    required this.scheduledAt,
+    this.notes,
     this.status = AppointmentStatus.pending,
     required this.createdAt,
   });
@@ -25,10 +25,10 @@ class Appointment {
     return Appointment(
       id: json['id'],
       listingId: json['listing_id'],
-      customerId: json['customer_id'],
-      professionalId: json['professional_id'],
-      startTime: DateTime.parse(json['start_time']),
-      endTime: DateTime.parse(json['end_time']),
+      customerId: json['client_id'],
+      professionalId: json['provider_id'],
+      scheduledAt: DateTime.parse(json['scheduled_at']),
+      notes: json['notes'],
       status: _parseStatus(json['status']),
       createdAt: DateTime.parse(json['created_at']),
     );
@@ -37,10 +37,10 @@ class Appointment {
   Map<String, dynamic> toJson() {
     return {
       'listing_id': listingId,
-      'customer_id': customerId,
-      'professional_id': professionalId,
-      'start_time': startTime.toIso8601String(),
-      'end_time': endTime.toIso8601String(),
+      'client_id': customerId,
+      'provider_id': professionalId,
+      'scheduled_at': scheduledAt.toIso8601String(),
+      'notes': notes,
       'status': status.name,
     };
   }

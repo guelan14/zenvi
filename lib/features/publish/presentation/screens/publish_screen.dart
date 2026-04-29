@@ -16,7 +16,8 @@ import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 
 class PublishScreen extends ConsumerStatefulWidget {
   final ListingType initialType;
-  const PublishScreen({super.key, this.initialType = ListingType.service});
+  final Listing? listingToEdit;
+  const PublishScreen({super.key, this.initialType = ListingType.service, this.listingToEdit});
 
   @override
   ConsumerState<PublishScreen> createState() => _PublishScreenState();
@@ -29,6 +30,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   late ListingType _type;
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
+  List<String> _existingImages = [];
 
   // Availability State
   final Map<int, List<Map<String, TimeOfDay>>> _dailyRanges = {
@@ -75,7 +77,27 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   @override
   void initState() {
     super.initState();
-    _type = widget.initialType;
+    _type = widget.listingToEdit?.type ?? widget.initialType;
+    
+    if (widget.listingToEdit != null) {
+      final l = widget.listingToEdit!;
+      _titleController.text = l.title;
+      _descriptionController.text = l.description;
+      _priceController.text = l.price?.toStringAsFixed(0) ?? '';
+      _workMode = l.workMode;
+      _cityController.text = l.city ?? '';
+      _addressController.text = l.address ?? '';
+      _lat = l.lat;
+      _lng = l.lng;
+      if (l.images.isNotEmpty) {
+        _existingImages = List.from(l.images);
+      }
+      // Assuming categories match the string
+      if (l.category != null && _categories.any((c) => c.toLowerCase() == l.category!.toLowerCase())) {
+        _selectedCategory = _categories.firstWhere((c) => c.toLowerCase() == l.category!.toLowerCase());
+      }
+    }
+    
     // Llenar con valores por defecto (Lun-Vie 9-18)
     for (int i = 1; i <= 5; i++) {
       _dailyRanges[i] = [
@@ -210,6 +232,44 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           spacing: 12,
           runSpacing: 12,
           children: [
+            ..._existingImages.map((url) {
+              return Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      url,
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _existingImages.remove(url);
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
             ..._selectedImages.map((file) {
               return Stack(
                 children: [
@@ -268,7 +328,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                 ],
               );
             }).toList(),
-            if (_selectedImages.length < 3)
+            if ((_existingImages.length + _selectedImages.length) < 3)
               GestureDetector(
                 onTap: () async {
                   final pickedFile = await _picker.pickImage(
@@ -1250,7 +1310,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         'price': _priceController.text.isNotEmpty
             ? double.tryParse(_priceController.text)
             : null,
-        'images': uploadedImageUrls,
+        'images': [..._existingImages, ...uploadedImageUrls],
         'location': _addressController.text.isNotEmpty
             ? '${_cityController.text.trim()}, ${_addressController.text.trim()}'
             : _cityController.text.trim(),
@@ -1261,9 +1321,17 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         'status': 'active',
         'accepts_emergencies': _acceptsEmergencies,
       };
-      final createdListing = await ref
-          .read(listingRepositoryProvider)
-          .createListing(listingData);
+      
+      final Listing createdListing;
+      if (widget.listingToEdit != null) {
+        createdListing = await ref
+            .read(listingRepositoryProvider)
+            .updateListing(widget.listingToEdit!.id, listingData);
+      } else {
+        createdListing = await ref
+            .read(listingRepositoryProvider)
+            .createListing(listingData);
+      }
 
       // Guardar disponibilidad vinculada al SERVICIO
       final List<Map<String, dynamic>> availabilityData = [];
@@ -1320,7 +1388,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          _isService ? 'Publicar Servicio' : 'Pedir Trabajo',
+          widget.listingToEdit != null 
+              ? 'Editar Publicación' 
+              : (_isService ? 'Publicar Servicio' : 'Pedir Trabajo'),
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 17,
@@ -1431,7 +1501,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                               )
                             : Text(
                                 _currentStep == _totalSteps - 1
-                                    ? 'Publicar'
+                                    ? (widget.listingToEdit != null ? 'Guardar' : 'Publicar')
                                     : 'Siguiente →',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,

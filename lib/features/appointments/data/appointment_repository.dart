@@ -14,8 +14,8 @@ class AppointmentRepository {
     final response = await _client
         .from('appointments')
         .select()
-        .or('customer_id.eq.$userId,professional_id.eq.$userId')
-        .order('start_time', ascending: true);
+        .or('client_id.eq.$userId,provider_id.eq.$userId')
+        .order('scheduled_at', ascending: true);
     
     return (response as List).map((json) => Appointment.fromJson(json)).toList();
   }
