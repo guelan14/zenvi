@@ -3,9 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
-import 'package:zenvi/shared/domain/models/profile.dart';
-import 'package:zenvi/features/home/domain/models/listing.dart';
-import 'package:zenvi/shared/domain/models/availability.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -96,7 +93,7 @@ class ProfileScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  profile.location ?? 'Posadas, Misiones',
+                                  profile.location,
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
@@ -216,11 +213,8 @@ class ProfileScreen extends ConsumerWidget {
                                               width: 60,
                                               height: 60,
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(
-                                                  0.05,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
+                                                color: Colors.black.withValues(alpha: 0.05),
+                                                borderRadius: BorderRadius.circular(8),
                                               ),
                                               child: const Icon(
                                                 Icons.image_outlined,
@@ -247,30 +241,46 @@ class ProfileScreen extends ConsumerWidget {
                                                 Row(
                                                   children: [
                                                     Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3,
-                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 3,
+                                                          ),
                                                       decoration: BoxDecoration(
-                                                        color: Colors.orange.withOpacity(0.1),
-                                                        borderRadius: BorderRadius.circular(6),
+                                                        color: Colors.orange
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
                                                       ),
                                                       child: Text(
-                                                        (listing.category ?? 'Servicio').toUpperCase(),
+                                                        (listing.category ??
+                                                                'Servicio')
+                                                            .toUpperCase(),
                                                         style: const TextStyle(
                                                           color: Colors.orange,
                                                           fontSize: 9,
-                                                          fontWeight: FontWeight.bold,
+                                                          fontWeight:
+                                                              FontWeight.bold,
                                                           letterSpacing: 0.5,
                                                         ),
                                                       ),
                                                     ),
                                                     const SizedBox(width: 8),
-                                                    const Icon(Icons.location_on_outlined, size: 10, color: Colors.black26),
+                                                    const Icon(
+                                                      Icons
+                                                          .location_on_outlined,
+                                                      size: 10,
+                                                      color: Colors.black26,
+                                                    ),
                                                     const SizedBox(width: 2),
                                                     Text(
                                                       listing.city ?? 'Posadas',
-                                                      style: const TextStyle(color: Colors.black26, fontSize: 10),
+                                                      style: const TextStyle(
+                                                        color: Colors.black26,
+                                                        fontSize: 10,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),

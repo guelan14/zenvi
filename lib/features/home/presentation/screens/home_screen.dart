@@ -244,6 +244,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
         const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: listing.images.isNotEmpty
+              ? Image.network(
+                  listing.images.first,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                )
+              : Container(
+                  height: 140,
+                  width: double.infinity,
+                  color: Colors.black.withValues(alpha: 0.05),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_outlined, color: Colors.black.withValues(alpha: 0.2), size: 32),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Sin foto',
+                        style: TextStyle(color: Colors.black.withValues(alpha: 0.3), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             const Icon(Icons.location_on_outlined, size: 12, color: Colors.black38),

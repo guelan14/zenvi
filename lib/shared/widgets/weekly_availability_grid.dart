@@ -7,53 +7,63 @@ class WeeklyAvailabilityGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final days = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+    final days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     
+    final Map<int, List<Availability>> groupedSlots = {};
+    for (var slot in slots) {
+      if (!groupedSlots.containsKey(slot.dayOfWeek)) {
+        groupedSlots[slot.dayOfWeek] = [];
+      }
+      groupedSlots[slot.dayOfWeek]!.add(slot);
+    }
+
+    if (groupedSlots.isEmpty) {
+      return const Text('Consultar disponibilidad por chat.', style: TextStyle(color: Colors.black45, fontSize: 14));
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.02),
+        color: const Color(0xFFF9F9F9),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: List.generate(7, (index) {
-          final daySlots = slots.where((s) => s.dayOfWeek == index).toList();
-          final hasSlots = daySlots.isNotEmpty;
+          // Lunes(1) a Domingo(0)
+          final actualDay = (index + 1) % 7;
+          final daySlots = groupedSlots[actualDay];
           
-          return Column(
-            children: [
-              Text(
-                days[index],
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: hasSlots ? Colors.black : Colors.black26,
+          if (daySlots == null || daySlots.isEmpty) return const SizedBox.shrink();
+
+          daySlots.sort((a, b) => a.startTime.hour.compareTo(b.startTime.hour));
+
+          final timeStrings = daySlots.map((slot) {
+            final start = Availability.formatTime(slot.startTime);
+            final end = Availability.formatTime(slot.endTime);
+            return '$start a $end';
+          }).join(',  ');
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    days[actualDay],
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: hasSlots ? Colors.black : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: hasSlots ? null : Border.all(color: Colors.black12),
+                Expanded(
+                  child: Text(
+                    timeStrings,
+                    style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w500),
+                  ),
                 ),
-                child: hasSlots 
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : null,
-              ),
-              const SizedBox(height: 8),
-              if (hasSlots)
-                Text(
-                  '${daySlots.length} r.',
-                  style: const TextStyle(fontSize: 9, color: Colors.black54),
-                )
-              else
-                const Text('-', style: TextStyle(fontSize: 9, color: Colors.black26)),
-            ],
+              ],
+            ),
           );
         }),
       ),

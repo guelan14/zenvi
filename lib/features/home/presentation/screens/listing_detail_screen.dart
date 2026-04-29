@@ -36,10 +36,10 @@ class ListingDetailScreen extends ConsumerWidget {
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
                   background: listing.images.isNotEmpty
-                      ? Image.network(listing.images.first, fit: BoxFit.cover)
+                      ? _ImageSlider(images: listing.images)
                       : Container(
-                          color: const Color(0xFFF0F0F0),
-                          child: const Icon(Icons.image_outlined, size: 64, color: Colors.black12),
+                          color: const Color(0xFFF9F9F9),
+                          child: const Icon(Icons.image_outlined, size: 64, color: Colors.black26),
                         ),
                 ),
               ),
@@ -258,6 +258,63 @@ class ListingDetailScreen extends ConsumerWidget {
           Text('URGENCIAS', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
+    );
+  }
+}
+
+class _ImageSlider extends StatefulWidget {
+  final List<String> images;
+
+  const _ImageSlider({required this.images});
+
+  @override
+  State<_ImageSlider> createState() => _ImageSliderState();
+}
+
+class _ImageSliderState extends State<_ImageSlider> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.images.isEmpty) return const SizedBox();
+    if (widget.images.length == 1) {
+      return Image.network(widget.images.first, fit: BoxFit.cover);
+    }
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.images.length,
+          onPageChanged: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          itemBuilder: (context, index) {
+            return Image.network(widget.images[index], fit: BoxFit.cover);
+          },
+        ),
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: widget.images.asMap().entries.map((entry) {
+              return Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentIndex == entry.key
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.5),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }
