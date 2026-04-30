@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
+import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  final Listing listing;
-  const ChatScreen({super.key, required this.listing});
+  final Listing? listing;
+  final String? otherUserId;
+  const ChatScreen({super.key, this.listing, this.otherUserId});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -19,36 +22,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
+    if (targetUserId == null) {
+      return const Scaffold(body: Center(child: Text('Error: No target user specified')));
+    }
+
+    final currentUser = ref.watch(currentUserProvider);
+    final conversationAsync = ref.watch(currentConversationProvider(targetUserId));
+    final profileAsync = ref.watch(profileProvider(targetUserId));
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.black12,
-              child: Text(widget.listing.title[0]),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.listing.title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        title: profileAsync.when(
+          loading: () => const Text('Cargando...'),
+          error: (_, __) => const Text('Error al cargar'),
+          data: (profile) {
+            final name = profile?.fullName ?? widget.listing?.title ?? 'Usuario';
+            final avatarUrl = profile?.avatarUrl;
+            
+            return Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.black12,
+                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  child: avatarUrl == null ? Text(name[0].toUpperCase()) : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (widget.listing != null)
+                        Text(
+                          widget.listing!.title,
+                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
-                  const Text(
-                    'En línea',
-                    style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           IconButton(
@@ -60,29 +85,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           // ─── Banner de Turno ───────────────────────────────────────────────
-          _buildAppointmentBanner(),
+          if (widget.listing != null) _buildAppointmentBanner(),
 
           // ─── Lista de Mensajes ─────────────────────────────────────────────
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                _buildSystemMessage('Iniciaste una conversación por este servicio'),
-                const SizedBox(height: 16),
-                _buildMessageBubble(
-                  'Hola! Me interesa tu servicio de ${widget.listing.title}. ¿Tenés disponibilidad?',
-                  isMe: true,
-                ),
-                _buildMessageBubble(
-                  'Hola! Sí, por supuesto. Podés ver mis horarios arriba o decirme qué día te queda mejor.',
-                  isMe: false,
-                ),
-              ],
+            child: conversationAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+              error: (err, _) => Center(child: Text('Error: $err')),
+              data: (conversation) {
+                if (conversation == null) return const Center(child: Text('No se pudo cargar la conversación'));
+                
+                final messagesAsync = ref.watch(messagesStreamProvider(conversation.id));
+                return messagesAsync.when(
+                  loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+                  error: (err, _) => Center(child: Text('Error: $err')),
+                  data: (messages) {
+                    return ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(20),
+                      itemCount: messages.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == messages.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildSystemMessage('Iniciaste una conversación por este servicio'),
+                          );
+                        }
+                        
+                        final msg = messages[index];
+                        final isMe = msg.senderId == currentUser?.id;
+                        return _buildMessageBubble(msg.content, isMe: isMe);
+                      },
+                    );
+                  },
+                );
+              },
             ),
           ),
 
           // ─── Input ─────────────────────────────────────────────────────────
-          _buildInput(),
+          _buildInput(conversationAsync.value?.id, currentUser?.id),
         ],
       ),
     );
@@ -189,7 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInput() {
+  Widget _buildInput(String? conversationId, String? currentUserId) {
     return Container(
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
       decoration: const BoxDecoration(
@@ -212,6 +254,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   border: InputBorder.none,
                   hintStyle: TextStyle(fontSize: 14, color: Colors.black38),
                 ),
+                onSubmitted: (_) {
+                  _sendMessage(conversationId, currentUserId);
+                },
               ),
             ),
           ),
@@ -219,7 +264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Container(
             decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
             child: IconButton(
-              onPressed: () {},
+              onPressed: () => _sendMessage(conversationId, currentUserId),
               icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
           ),
@@ -228,7 +273,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Future<void> _sendMessage(String? conversationId, String? currentUserId) async {
+    final text = _messageController.text;
+    if (text.isEmpty || conversationId == null || currentUserId == null) return;
+    _messageController.clear();
+    try {
+      await ref.read(chatRepositoryProvider).sendMessage(conversationId, currentUserId, text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
   Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref) async {
+    if (widget.listing == null) return;
+    
     final user = ref.read(currentUserProvider);
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -259,9 +318,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final appointment = Appointment(
       id: const Uuid().v4(),
-      listingId: widget.listing.id,
+      listingId: widget.listing!.id,
       customerId: user.id,
-      professionalId: widget.listing.authorId,
+      professionalId: widget.listing!.authorId,
       scheduledAt: start,
       createdAt: DateTime.now(),
     );

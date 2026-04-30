@@ -132,6 +132,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ChatScreen(listing: listing);
         },
       ),
+      GoRoute(
+        path: '/chat_user/:id',
+        builder: (context, state) {
+          final userId = state.pathParameters['id']!;
+          return ChatScreen(otherUserId: userId);
+        },
+      ),
     ],
   );
 });
