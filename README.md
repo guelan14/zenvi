@@ -1,6 +1,6 @@
 # Zervi
 
-Zervi is a premium service marketplace app for Posadas, Misiones, built with **Flutter**, **Supabase**, and **Riverpod**.
+Zervi is a service marketplace built with **Flutter**, **Supabase**, and **Riverpod**.
 
 ## Features
 - **Antigravity UI**: Modern, premium design with high-radius cards and soft shadows.
