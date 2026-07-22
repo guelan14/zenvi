@@ -120,6 +120,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -127,7 +129,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         context.go('/');
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -136,7 +138,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black87, size: 28),
                 onPressed: () => context.go('/'),
               ),
             ),
@@ -160,8 +162,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                       children: [
                         Text(
                           _isLogin ? 'Bienvenido\nde nuevo' : 'Creá tu\ncuenta',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
                             fontSize: 34,
                             fontWeight: FontWeight.bold,
                             height: 1.15,
@@ -172,7 +174,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           _isLogin
                               ? 'Ingresá para contactar profesionales'
                               : 'Unite y publicá o contratá servicios',
-                          style: const TextStyle(color: Color(0xFF8A8A8A), fontSize: 15),
+                          style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 15),
                         ),
                         const SizedBox(height: 36),
                         if (!_isLogin) ...[
@@ -238,12 +240,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                     text: _isLogin
                                         ? '¿No tenés cuenta? '
                                         : '¿Ya tenés cuenta? ',
-                                    style: const TextStyle(color: Color(0xFF8A8A8A)),
+                                    style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
                                   ),
                                   TextSpan(
                                     text: _isLogin ? 'Registrate' : 'Ingresá',
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : Colors.black87,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -256,9 +258,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         Center(
                           child: TextButton(
                             onPressed: () => context.go('/'),
-                            child: const Text(
+                            child: Text(
                               'Seguir explorando sin cuenta',
-                              style: TextStyle(color: Color(0xFF555555), fontSize: 13),
+                              style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
                             ),
                           ),
                         ),
@@ -278,32 +280,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   // ─── Sub-builders ────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1E222B) : const Color(0xFF0F0F0F),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Center(
+          child: Center(
             child: Text(
               'Z',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF0F0F0F),
+                color: isDark ? Colors.white : Colors.white,
                 height: 1,
               ),
             ),
           ),
         ),
         const SizedBox(width: 12),
-        const Text(
+        Text(
           'Zervi',
           style: TextStyle(
-            color: Colors.white,
+            color: isDark ? Colors.white : Colors.black,
             fontSize: 22,
             fontWeight: FontWeight.bold,
             letterSpacing: -0.5,
@@ -324,22 +327,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextFormField(
       key: ValueKey(id),
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      style: const TextStyle(color: Colors.white, fontSize: 15),
+      style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 15),
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF3A3A3A)),
-        labelStyle: const TextStyle(color: Color(0xFF8A8A8A), fontSize: 13),
-        prefixIcon: Icon(icon, color: const Color(0xFF8A8A8A), size: 20),
+        hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+        labelStyle: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
+        prefixIcon: Icon(icon, color: isDark ? Colors.white54 : Colors.black54, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: const Color(0xFF1C1C1C),
+        fillColor: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
         contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -347,11 +351,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF2A2A2A)),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF2E333F) : const Color(0xFFE5E7EB)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.white, width: 1.5),
+          borderSide: BorderSide(color: isDark ? Colors.white70 : Colors.black87, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -367,25 +371,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   }
 
   Widget _buildSubmitButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF0F0F0F),
-          disabledBackgroundColor: const Color(0xFF2A2A2A),
+          backgroundColor: isDark ? Colors.white : Colors.black,
+          foregroundColor: isDark ? Colors.black : Colors.white,
+          disabledBackgroundColor: isDark ? const Color(0xFF2E333F) : const Color(0xFFE5E7EB),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: Color(0xFF0F0F0F),
+                  color: isDark ? Colors.black : Colors.white,
                 ),
               )
             : Text(

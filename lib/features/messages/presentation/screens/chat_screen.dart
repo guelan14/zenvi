@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
@@ -181,6 +183,91 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildMessageBubble(String text, {required bool isMe}) {
+    final regExp = RegExp(r'\(ID: ([a-fA-F0-9\-]+)\)');
+    final hasAppointmentId = regExp.hasMatch(text);
+    String displayText = text;
+    String? appointmentId;
+
+    if (hasAppointmentId) {
+      final match = regExp.firstMatch(text);
+      appointmentId = match?.group(1);
+      displayText = text.replaceAll(regExp, '').trim();
+    }
+
+    if (hasAppointmentId && appointmentId != null) {
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+          decoration: BoxDecoration(
+            color: isMe ? Colors.black87 : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isMe ? Colors.black : Colors.black12,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      color: isMe ? Colors.white : Colors.blue[600],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        displayText,
+                        style: TextStyle(
+                          color: isMe ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, thickness: 1, color: Colors.black12),
+              InkWell(
+                onTap: () => context.push('/appointment/$appointmentId'),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Ver Detalle del Turno',
+                    style: TextStyle(
+                      color: isMe ? Colors.white : Colors.blue[700],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -314,7 +401,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (time == null) return;
 
     final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    final end = start.add(const Duration(hours: 1)); // Default 1 hour
 
     final appointment = Appointment(
       id: const Uuid().v4(),
@@ -327,6 +413,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     try {
       await ref.read(appointmentRepositoryProvider).createAppointment(appointment);
+      
+      // Enviar un mensaje de chat con el ID del turno embebido para notificar a la otra parte
+      final dateStr = DateFormat('dd/MM/yyyy').format(start);
+      final timeStr = DateFormat('HH:mm').format(start);
+      final messageContent = '📅 Solicitó un turno para el día $dateStr a las $timeStr hs. (ID: ${appointment.id})';
+      
+      final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
+      if (targetUserId != null) {
+        final conversation = ref.read(currentConversationProvider(targetUserId)).value;
+        if (conversation != null) {
+          await ref.read(chatRepositoryProvider).sendMessage(
+            conversation.id,
+            user.id,
+            messageContent,
+          );
+        }
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

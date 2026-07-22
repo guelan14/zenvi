@@ -15,3 +15,8 @@ final userAppointmentsProvider = FutureProvider<List<Appointment>>((ref) async {
   final repository = ref.watch(appointmentRepositoryProvider);
   return repository.getAppointmentsForUser(user.id);
 });
+
+final appointmentByIdProvider = FutureProvider.family<Appointment?, String>((ref, id) async {
+  final repository = ref.watch(appointmentRepositoryProvider);
+  return repository.getAppointmentById(id);
+});

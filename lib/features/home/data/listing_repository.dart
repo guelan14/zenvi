@@ -46,4 +46,14 @@ class ListingRepository {
     final response = await _client.from('listings').update(data).eq('id', id).select().single();
     return Listing.fromJson(response);
   }
+
+  Future<Listing?> getListingById(String id) async {
+    final response = await _client
+        .from('listings')
+        .select('*, categories(name)')
+        .eq('id', id)
+        .maybeSingle();
+    if (response == null) return null;
+    return Listing.fromJson(response);
+  }
 }

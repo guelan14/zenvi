@@ -19,4 +19,21 @@ class AppointmentRepository {
     
     return (response as List).map((json) => Appointment.fromJson(json)).toList();
   }
+
+  Future<void> updateAppointmentStatus(String appointmentId, AppointmentStatus status) async {
+    await _client
+        .from('appointments')
+        .update({'status': status.name})
+        .eq('id', appointmentId);
+  }
+
+  Future<Appointment?> getAppointmentById(String id) async {
+    final response = await _client
+        .from('appointments')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+    if (response == null) return null;
+    return Appointment.fromJson(response);
+  }
 }

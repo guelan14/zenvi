@@ -8,8 +8,9 @@ import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/weekly_availability_grid.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/publish/presentation/screens/publish_screen.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 class ListingDetailScreen extends ConsumerWidget {
   final String listingId;
 
@@ -29,8 +30,9 @@ class ListingDetailScreen extends ConsumerWidget {
           orElse: () => throw Exception('Servicio no encontrado'),
         );
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: CustomScrollView(
             slivers: [
               // ─── Header con Imagen ──────────────────────────────────────────
@@ -41,12 +43,12 @@ class ListingDetailScreen extends ConsumerWidget {
                   if (currentUserId == listing.authorId)
                     Container(
                       margin: const EdgeInsets.only(right: 12),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E222B) : Colors.white,
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.edit_outlined, color: Colors.black),
+                        icon: Icon(Icons.edit_outlined, color: isDark ? Colors.white : Colors.black),
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -65,8 +67,8 @@ class ListingDetailScreen extends ConsumerWidget {
                   background: listing.images.isNotEmpty
                       ? _ImageSlider(images: listing.images)
                       : Container(
-                          color: const Color(0xFFF9F9F9),
-                          child: const Icon(Icons.image_outlined, size: 64, color: Colors.black26),
+                          color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF9F9F9),
+                          child: Icon(Icons.image_outlined, size: 64, color: isDark ? Colors.white30 : Colors.black26),
                         ),
                 ),
               ),
@@ -102,12 +104,12 @@ class ListingDetailScreen extends ConsumerWidget {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.location_on_outlined, size: 16, color: Colors.black54),
-                                const SizedBox(width: 4),
-                                Text(
-                                  listing.city!,
-                                  style: const TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
+                                 Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
+                                 const SizedBox(width: 4),
+                                 Text(
+                                   listing.city!,
+                                   style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14, fontWeight: FontWeight.bold),
+                                 ),
                               ],
                             ),
                             if (listing.address != null && listing.address!.isNotEmpty)
@@ -115,7 +117,7 @@ class ListingDetailScreen extends ConsumerWidget {
                                 padding: const EdgeInsets.only(left: 20, top: 2),
                                 child: Text(
                                   listing.address!,
-                                  style: const TextStyle(color: Colors.black45, fontSize: 13),
+                                  style: TextStyle(color: isDark ? Colors.white30 : Colors.black45, fontSize: 13),
                                 ),
                               ),
                           ],
@@ -123,12 +125,12 @@ class ListingDetailScreen extends ConsumerWidget {
                       else if (listing.location != null)
                         Row(
                           children: [
-                            const Icon(Icons.location_on_outlined, size: 16, color: Colors.black54),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                listing.location!,
-                                style: const TextStyle(color: Colors.black54, fontSize: 14),
+                             Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
+                             const SizedBox(width: 4),
+                             Expanded(
+                               child: Text(
+                                 listing.location!,
+                                 style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -150,8 +152,8 @@ class ListingDetailScreen extends ConsumerWidget {
                         availabilityAsync.when(
                           data: (slots) => slots.isNotEmpty 
                             ? WeeklyAvailabilityGrid(slots: slots)
-                            : const Text('Consultar disponibilidad por chat.', style: TextStyle(color: Colors.black45, fontSize: 14)),
-                          loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            : Text('Consultar disponibilidad por chat.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 14)),
+                          loading: () => const ZerviSkeleton.rectangular(width: double.infinity, height: 60, borderRadius: 12),
                           error: (err, _) => const Text('Error al cargar disponibilidad'),
                         ),
                       ],
@@ -161,10 +163,10 @@ class ListingDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 32),
                       const Text('Descripción', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
-                      Text(
-                        listing.description,
-                        style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.6),
-                      ),
+                       Text(
+                         listing.description,
+                         style: TextStyle(fontSize: 15, color: isDark ? Colors.white70 : Colors.black87, height: 1.6),
+                       ),
                       
                       if (listing.lat != null && listing.lng != null) ...[
                         const SizedBox(height: 32),
@@ -174,7 +176,7 @@ class ListingDetailScreen extends ConsumerWidget {
                           height: 200,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.black12),
+                             border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(16),
@@ -196,6 +198,15 @@ class ListingDetailScreen extends ConsumerWidget {
                                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                     userAgentPackageName: 'com.Zervi.app',
                                   ),
+                                ),
+                                RichAttributionWidget(
+                                  alignment: AttributionAlignment.bottomLeft,
+                                  attributions: [
+                                    TextSourceAttribution(
+                                      'OpenStreetMap contributors',
+                                      onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+                                    ),
+                                  ],
                                 ),
                                 MarkerLayer(
                                   markers: [
@@ -245,7 +256,7 @@ class ListingDetailScreen extends ConsumerWidget {
                 ),
         );
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const ZerviListingDetailSkeleton(),
       error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
     );
   }

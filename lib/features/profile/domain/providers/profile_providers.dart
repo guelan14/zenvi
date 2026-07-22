@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/core/supabase/supabase_config.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
@@ -39,4 +40,44 @@ final profileListingsProvider = FutureProvider.family<List<Listing>, String>((re
   final realId = id == 'me' ? ref.watch(currentUserProvider)?.id : id;
   if (realId == null) return [];
   return ref.watch(listingRepositoryProvider).getListings(authorId: realId);
+});
+
+enum UserMode { client, professional }
+
+class UserModeNotifier extends Notifier<UserMode> {
+  @override
+  UserMode build() {
+    return UserMode.client;
+  }
+
+  void toggleMode() {
+    state = state == UserMode.client ? UserMode.professional : UserMode.client;
+  }
+
+  void setMode(UserMode mode) {
+    state = mode;
+  }
+}
+
+final userModeProvider = NotifierProvider<UserModeNotifier, UserMode>(() {
+  return UserModeNotifier();
+});
+
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() {
+    return ThemeMode.system;
+  }
+
+  void toggleTheme() {
+    state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+  }
+
+  void setThemeMode(ThemeMode mode) {
+    state = mode;
+  }
+}
+
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(() {
+  return ThemeModeNotifier();
 });

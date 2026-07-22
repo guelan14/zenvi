@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
-import 'package:zenvi/features/home/presentation/widgets/feed_selector.dart';
+import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
+import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
+import 'package:zenvi/shared/widgets/role_switch_dialog.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -14,23 +16,12 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  ListingType _selectedType = ListingType.service;
   String _searchQuery = '';
   String? _activeCategory;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  static const List<Map<String, dynamic>> _categories = [
-    {'name': 'Limpieza y Mantenimiento', 'icon': Icons.cleaning_services_rounded},
-    {'name': 'Reformas y Construcción', 'icon': Icons.construction_rounded},
-    {'name': 'Técnica y Reparaciones', 'icon': Icons.build_rounded},
-    {'name': 'Fletes y Mudanzas', 'icon': Icons.local_shipping_rounded},
-    {'name': 'Belleza y Bienestar', 'icon': Icons.content_cut_rounded},
-    {'name': 'Clases Particulares', 'icon': Icons.school_rounded},
-    {'name': 'Programación y Diseño', 'icon': Icons.code_rounded},
-    {'name': 'Gastronomía', 'icon': Icons.restaurant_rounded},
-    {'name': 'Otros', 'icon': Icons.more_horiz_rounded},
-  ];
+
 
   @override
   void dispose() {
@@ -41,120 +32,281 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final listingsAsync = ref.watch(listingsProvider(_selectedType));
+    final userMode = ref.watch(userModeProvider);
+    final targetType = userMode == UserMode.client ? ListingType.service : ListingType.job;
+    final listingsAsync = ref.watch(listingsProvider(targetType));
+    final categoriesAsync = ref.watch(categoriesProvider);
+    final myServicesAsync = ref.watch(profileListingsProvider('me'));
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Zervi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
-        backgroundColor: Colors.white,
+        title: Text(
+          'Zervi',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+          ),
+        ),
         elevation: 0,
         actions: [
           Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () {
+                  RoleSwitchDialog.show(
+                    context,
+                    switchingToProfessional: userMode == UserMode.client,
+                    onConfirm: () {
+                      ref.read(userModeProvider.notifier).toggleMode();
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            userMode == UserMode.client
+                                ? 'Cambiado a Modo Profesional 🛠️'
+                                : 'Cambiado a Modo Cliente 🔍',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          duration: const Duration(seconds: 1),
+                          backgroundColor: Colors.black,
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: userMode == UserMode.client ? Colors.black : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.black.withValues(alpha: userMode == UserMode.client ? 1.0 : 0.08),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: userMode == UserMode.client ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (userMode == UserMode.client ? const Color(0xFF10B981) : const Color(0xFF3B82F6)).withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        userMode == UserMode.client ? 'MODO CLIENTE' : 'MODO PRO',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: userMode == UserMode.client ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 14,
+                        color: userMode == UserMode.client ? Colors.white70 : Colors.black54,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
-              icon: const Icon(Icons.notifications_none, color: Colors.black87),
+              icon: Icon(
+                Icons.notifications_none,
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+              ),
               onPressed: () {},
             ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Barra de Búsqueda Compacta
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F1F1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onSubmitted: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                    _activeCategory = null;
-                  });
-                },
-                decoration: const InputDecoration(
-                  hintText: '¿Qué estás buscando?',
-                  hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
-                  border: InputBorder.none,
-                  icon: Icon(Icons.search, color: Colors.black54, size: 20),
+      body: userMode == UserMode.professional
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Text(
+                    'Mis Servicios',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
-          
-          // Selector de Tipo (Servicios / Pedidos)
-          FeedSelector(
-            selectedType: _selectedType,
-            onTypeChanged: (type) {
-              setState(() {
-                _selectedType = type;
-                _activeCategory = null;
-                _searchQuery = '';
-                _searchController.clear();
-              });
-            },
-          ),
+                Expanded(
+                  child: myServicesAsync.when(
+                    data: (listings) {
+                      final myServices = listings.where((l) => l.type == ListingType.service).toList();
 
-          const SizedBox(height: 8),
+                      if (myServices.isEmpty) {
+                        return _buildProfessionalEmptyState(context);
+                      }
 
-          // Chips de Categorías (Compacto Horizontal)
-          SizedBox(
-            height: 44,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final cat = _categories[index];
-                final isSelected = _activeCategory == cat['name'];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(
-                      cat['name'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      return RefreshIndicator(
+                        onRefresh: () => ref.refresh(profileListingsProvider('me').future),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: myServices.length,
+                          itemBuilder: (context, index) {
+                            final listing = myServices[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: ZerviCard(
+                                onTap: () => context.push('/listing/${listing.id}'),
+                                child: _buildListingItem(listing),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                    loading: () => ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: 2,
+                      itemBuilder: (context, index) => const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: ZerviListingSkeleton(),
                       ),
                     ),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        _activeCategory = selected ? cat['name'] : null;
-                        _searchQuery = '';
-                        _searchController.clear();
-                      });
-                    },
-                    backgroundColor: const Color(0xFFF1F1F1),
-                    selectedColor: Colors.black,
-                    checkmarkColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    showCheckmark: false,
+                    error: (err, stack) => Center(child: Text('Error: $err')),
                   ),
-                );
-              },
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                // Barra de Búsqueda Compacta
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onSubmitted: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                          _activeCategory = null;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: '¿Qué estás buscando?',
+                        hintStyle: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        icon: Icon(
+                          Icons.search,
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                SizedBox(
+                  height: 44,
+                  child: categoriesAsync.when(
+                    loading: () => ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: 5,
+                      itemBuilder: (context, index) => const ZerviCategorySkeleton(),
+                    ),
+                    error: (err, _) => const SizedBox(),
+                    data: (categories) {
+                      return ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: categories.length,
+                        itemBuilder: (context, index) {
+                          final cat = categories[index];
+                          final catName = cat['name'] as String;
+                          final isSelected = _activeCategory == catName;
+                          final isDark = Theme.of(context).brightness == Brightness.dark;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(
+                                catName,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isSelected
+                                      ? (isDark ? Colors.black : Colors.white)
+                                      : (isDark ? Colors.white70 : Colors.black87),
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _activeCategory = selected ? catName : null;
+                                  _searchQuery = '';
+                                  _searchController.clear();
+                                });
+                              },
+                              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                              selectedColor: isDark ? Colors.white : Colors.black,
+                              checkmarkColor: isDark ? Colors.black : Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              showCheckmark: false,
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Listado Principal
+                Expanded(
+                  child: _buildList(listingsAsync, targetType),
+                ),
+              ],
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Listado Principal
-          Expanded(
-            child: _buildList(listingsAsync),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildList(AsyncValue<List<Listing>> listingsAsync) {
+  Widget _buildList(AsyncValue<List<Listing>> listingsAsync, ListingType targetType) {
     return listingsAsync.when(
       data: (listings) {
         final filteredListings = listings.where((l) {
@@ -170,7 +322,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
 
         return RefreshIndicator(
-          onRefresh: () => ref.refresh(listingsProvider(_selectedType).future),
+          onRefresh: () => ref.refresh(listingsProvider(targetType).future),
           child: ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -188,12 +340,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: 3,
+        itemBuilder: (context, index) => const Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: ZerviListingSkeleton(),
+        ),
+      ),
       error: (err, stack) => Center(child: Text('Error: $err')),
     );
   }
 
   Widget _buildListingItem(Listing listing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -216,7 +376,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (listing.category != null)
                     Text(
                       listing.category!.toUpperCase(),
-                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black45),
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? Colors.white54 : Colors.black45),
                     ),
                   Text(
                     listing.title,
@@ -238,7 +398,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 8),
           Text(
             listing.description,
-            style: const TextStyle(color: Colors.black54, fontSize: 13),
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 13),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -256,15 +416,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               : Container(
                   height: 140,
                   width: double.infinity,
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.image_outlined, color: Colors.black.withValues(alpha: 0.2), size: 32),
+                      Icon(Icons.image_outlined, color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.2), size: 32),
                       const SizedBox(height: 4),
                       Text(
                         'Sin foto',
-                        style: TextStyle(color: Colors.black.withValues(alpha: 0.3), fontSize: 12),
+                        style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.3), fontSize: 12),
                       ),
                     ],
                   ),
@@ -273,11 +433,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            const Icon(Icons.location_on_outlined, size: 12, color: Colors.black38),
+            Icon(Icons.location_on_outlined, size: 12, color: isDark ? Colors.white38 : Colors.black38),
             const SizedBox(width: 4),
             Text(
               listing.city ?? listing.location ?? 'Sin ubicación',
-              style: const TextStyle(color: Colors.black38, fontSize: 11),
+              style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11),
             ),
             const Spacer(),
             if (listing.acceptsEmergencies)
@@ -304,6 +464,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             style: TextStyle(color: Colors.black54, fontSize: 14),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfessionalEmptyState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.work_outline_rounded,
+                size: 48,
+                color: isDark ? Colors.white30 : Colors.black26,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No tenés servicios creados',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Publicá tu primer servicio para empezar a recibir propuestas de clientes.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () => context.push('/publish?type=service'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? Colors.white : Colors.black,
+                  foregroundColor: isDark ? Colors.black : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text(
+                  'Crear Servicio',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

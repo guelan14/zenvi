@@ -13,7 +13,7 @@ import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 class PublishScreen extends ConsumerStatefulWidget {
   final ListingType initialType;
   final Listing? listingToEdit;
@@ -674,6 +674,15 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.zervi.app',
                   ),
+                ),
+                RichAttributionWidget(
+                  alignment: AttributionAlignment.bottomLeft,
+                  attributions: [
+                    TextSourceAttribution(
+                      'OpenStreetMap contributors',
+                      onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+                    ),
+                  ],
                 ),
                 if (_lat != null && _lng != null)
                   MarkerLayer(

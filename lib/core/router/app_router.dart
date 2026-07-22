@@ -11,12 +11,14 @@ import 'package:zenvi/features/messages/presentation/screens/messages_screen.dar
 import 'package:zenvi/features/publish/presentation/screens/publish_screen.dart';
 import 'package:zenvi/features/profile/presentation/screens/profile_screen.dart';
 import 'package:zenvi/features/appointments/presentation/screens/appointments_screen.dart';
+import 'package:zenvi/features/appointments/presentation/screens/appointment_detail_screen.dart';
 import 'package:zenvi/features/messages/presentation/screens/chat_screen.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
+import 'package:zenvi/features/profile/presentation/screens/metrics_screen.dart';
 
 /// Routes that require authentication. Unauthenticated access redirects to /auth.
-const _protectedRoutes = {'/messages', '/profile/me', '/agenda', '/chat'};
+const _protectedRoutes = {'/messages', '/profile/me', '/agenda', '/chat', '/appointment', '/metrics'};
 
 // ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────
 
@@ -63,6 +65,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
           GoRoute(path: '/map', builder: (context, state) => const MapScreen()),
+          GoRoute(
+            path: '/metrics',
+            builder: (context, state) => const MetricsScreen(),
+          ),
           GoRoute(
             path: '/agenda',
             builder: (context, state) => const AppointmentsScreen(),
@@ -111,6 +117,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return ListingDetailScreen(listingId: id);
+        },
+      ),
+      GoRoute(
+        path: '/appointment/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return AppointmentDetailScreen(appointmentId: id);
         },
       ),
       GoRoute(

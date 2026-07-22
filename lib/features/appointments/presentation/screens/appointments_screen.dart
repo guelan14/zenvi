@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:go_router/go_router.dart';
 import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
+import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:intl/intl.dart';
 
 class AppointmentsScreen extends ConsumerStatefulWidget {
@@ -33,19 +36,19 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
   Widget build(BuildContext context) {
     final appointmentsAsync = ref.watch(userAppointmentsProvider);
     final userId = ref.watch(currentUserProvider)?.id;
+    final userMode = ref.watch(userModeProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           'Agenda',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.today, color: Colors.black),
+            icon: const Icon(Icons.today),
             onPressed: () {
               setState(() {
                 _focusedDay = DateTime.now();
@@ -56,9 +59,17 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
         ],
       ),
       body: appointmentsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+        loading: () => const ZerviAgendaSkeleton(),
         error: (error, stack) => Center(child: Text('Error: $error')),
-        data: (appointments) {
+        data: (allAppointments) {
+          final appointments = allAppointments.where((app) {
+            if (userMode == UserMode.client) {
+              return app.customerId == userId;
+            } else {
+              return app.professionalId == userId;
+            }
+          }).toList();
+
           final eventsForSelectedDay = _getEventsForDay(appointments, _selectedDay!);
 
           return Column(
@@ -70,17 +81,24 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 eventLoader: (day) => _getEventsForDay(appointments, day),
                 startingDayOfWeek: StartingDayOfWeek.monday,
-                calendarStyle: const CalendarStyle(
+                 calendarStyle: CalendarStyle(
                   selectedDecoration: BoxDecoration(
-                    color: Colors.black,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
                     shape: BoxShape.circle,
+                  ),
+                  selectedTextStyle: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                   todayDecoration: BoxDecoration(
-                    color: Colors.black26,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black26,
                     shape: BoxShape.circle,
                   ),
-                  markerDecoration: BoxDecoration(
-                    color: Colors.black54,
+                  todayTextStyle: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                  ),
+                  markerDecoration: const BoxDecoration(
+                    color: Colors.grey,
                     shape: BoxShape.circle,
                   ),
                   outsideDaysVisible: false,
@@ -103,58 +121,37 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
                   markerBuilder: (context, date, events) {
                     if (events.isEmpty) return const SizedBox();
                     
-                    // Count my work vs my shifts to show different dots
-                    int workCount = 0;
-                    int shiftCount = 0;
+                    final color = userMode == UserMode.client ? Colors.green[600] : Colors.blue[600];
                     
-                    for (var event in events) {
-                      if (event.professionalId == userId) {
-                        workCount++;
-                      } else {
-                        shiftCount++;
-                      }
-                    }
-                    
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (workCount > 0)
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.blue[600],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        if (shiftCount > 0)
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.green[600],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
+                    return Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
                     );
                   },
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.circle, size: 10, color: Colors.blue),
-                    SizedBox(width: 4),
-                    Text('Mis Trabajos', style: TextStyle(fontSize: 12)),
-                    SizedBox(width: 16),
-                    Icon(Icons.circle, size: 10, color: Colors.green),
-                    SizedBox(width: 4),
-                    Text('Mis Turnos', style: TextStyle(fontSize: 12)),
+                    Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: userMode == UserMode.client ? Colors.green : Colors.blue,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      userMode == UserMode.client
+                          ? 'Mis Turnos Solicitados'
+                          : 'Mis Trabajos Agendados',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
@@ -172,7 +169,7 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
                         itemCount: eventsForSelectedDay.length,
                         itemBuilder: (context, index) {
                           final event = eventsForSelectedDay[index];
-                          final isMyWork = event.professionalId == userId;
+                          final isMyWork = userMode == UserMode.professional;
                           
                           return _buildEventCard(event, isMyWork);
                         },
@@ -205,7 +202,7 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            // TODO: Navigate to appointment details
+            context.push('/appointment/${event.id}');
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(

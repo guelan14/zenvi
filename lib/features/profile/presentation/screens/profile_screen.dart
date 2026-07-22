@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
+import 'package:zenvi/shared/widgets/role_switch_dialog.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
+import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
+import 'package:zenvi/features/home/domain/models/listing.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final String profileId;
@@ -15,9 +18,12 @@ class ProfileScreen extends ConsumerWidget {
     final profileAsync = ref.watch(profileProvider(profileId));
     final listingsAsync = ref.watch(profileListingsProvider(profileId));
     final currentUser = ref.watch(currentUserProvider);
+    final userMode = ref.watch(userModeProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: profileAsync.when(
         data: (profile) {
           if (profile == null) {
@@ -142,6 +148,12 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (isMe) ...[
+                        _buildRoleSwitcherCard(context, ref, userMode),
+                        const SizedBox(height: 16),
+                        _buildThemeSwitcherCard(context, ref, themeMode),
+                        const SizedBox(height: 24),
+                      ],
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -152,7 +164,7 @@ class ProfileScreen extends ConsumerWidget {
                               icon: const Icon(Icons.edit_outlined, size: 16),
                               label: const Text('Editar'),
                               style: TextButton.styleFrom(
-                                foregroundColor: Colors.black54,
+                                foregroundColor: isDark ? Colors.white70 : Colors.black54,
                               ),
                             ),
                         ],
@@ -160,9 +172,9 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 12),
                       Text(
                         profile.bio ?? 'Sin descripción aún.',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          color: Colors.black87,
+                          color: isDark ? Colors.white70 : Colors.black87,
                           height: 1.5,
                         ),
                       ),
@@ -171,15 +183,29 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 32),
 
                       // ─── Listings ─────────────────────────────────────────────
-                      const _SectionTitle('Servicios publicados'),
+                      _SectionTitle(
+                        isMe
+                            ? (userMode == UserMode.client ? 'Mis Pedidos publicados' : 'Mis Servicios publicados')
+                            : 'Servicios publicados',
+                      ),
                       const SizedBox(height: 12),
                       listingsAsync.when(
-                        data: (listings) {
+                        data: (allListings) {
+                          final listings = allListings.where((l) {
+                            if (isMe) {
+                              final targetType = userMode == UserMode.client ? ListingType.job : ListingType.service;
+                              return l.type == targetType;
+                            }
+                            return l.type == ListingType.service;
+                          }).toList();
+
                           if (listings.isEmpty) {
-                            return const Text(
-                              'No hay servicios publicados aún.',
+                            return Text(
+                              isMe
+                                  ? (userMode == UserMode.client ? 'No tenés pedidos publicados aún.' : 'No tenés servicios publicados aún.')
+                                  : 'No hay servicios publicados aún.',
                               style: TextStyle(
-                                color: Colors.black38,
+                                color: isDark ? Colors.white30 : Colors.black38,
                                 fontSize: 14,
                               ),
                             );
@@ -213,12 +239,12 @@ class ProfileScreen extends ConsumerWidget {
                                               width: 60,
                                               height: 60,
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withValues(alpha: 0.05),
+                                                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: const Icon(
+                                              child: Icon(
                                                 Icons.image_outlined,
-                                                color: Colors.black26,
+                                                color: isDark ? Colors.white30 : Colors.black26,
                                               ),
                                             ),
                                           const SizedBox(width: 16),
@@ -268,17 +294,16 @@ class ProfileScreen extends ConsumerWidget {
                                                       ),
                                                     ),
                                                     const SizedBox(width: 8),
-                                                    const Icon(
-                                                      Icons
-                                                          .location_on_outlined,
+                                                    Icon(
+                                                      Icons.location_on_outlined,
                                                       size: 10,
-                                                      color: Colors.black26,
+                                                      color: isDark ? Colors.white30 : Colors.black26,
                                                     ),
                                                     const SizedBox(width: 2),
                                                     Text(
                                                       listing.city ?? 'Posadas',
-                                                      style: const TextStyle(
-                                                        color: Colors.black26,
+                                                      style: TextStyle(
+                                                        color: isDark ? Colors.white30 : Colors.black26,
                                                         fontSize: 10,
                                                       ),
                                                     ),
@@ -303,10 +328,13 @@ class ProfileScreen extends ConsumerWidget {
                                 .toList(),
                           );
                         },
-                        loading: () => const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        loading: () => Column(
+                          children: List.generate(
+                            2,
+                            (index) => const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: ZerviProfileListingSkeleton(),
+                            ),
                           ),
                         ),
                         error: (err, _) => Text('Error: $err'),
@@ -388,6 +416,206 @@ class ProfileScreen extends ConsumerWidget {
   String _sinceText(DateTime date) {
     final months = DateTime.now().difference(date).inDays ~/ 30;
     return months >= 12 ? '${months ~/ 12}a' : '${months}m';
+  }
+
+  Widget _buildRoleSwitcherCard(BuildContext context, WidgetRef ref, UserMode userMode) {
+    final isClient = userMode == UserMode.client;
+
+    final triggerSwitch = () {
+      RoleSwitchDialog.show(
+        context,
+        switchingToProfessional: isClient,
+        onConfirm: () {
+          ref.read(userModeProvider.notifier).toggleMode();
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isClient
+                    ? 'Cambiado a Modo Profesional 🛠️'
+                    : 'Cambiado a Modo Cliente 🔍',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              duration: const Duration(seconds: 1),
+              backgroundColor: Colors.black,
+            ),
+          );
+        },
+      );
+    };
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: triggerSwitch,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          decoration: BoxDecoration(
+            gradient: isClient
+                ? const LinearGradient(
+                    colors: [Colors.white, Color(0xFFF9FBF9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : const LinearGradient(
+                    colors: [Color(0xFF111111), Color(0xFF222222)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isClient ? Colors.black.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.08),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isClient ? 0.03 : 0.15),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isClient ? const Color(0xFFE8F5E9) : const Color(0xFF1E293B),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isClient ? Icons.search_rounded : Icons.construction_rounded,
+                      color: isClient ? const Color(0xFF2E7D32) : const Color(0xFF42A5F5),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MODO DE USO',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: isClient ? Colors.black54 : Colors.white54,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isClient ? 'Buscar Profesionales' : 'Ofrecer Trabajo (Pro)',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isClient ? Colors.black87 : Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Switch(
+                value: !isClient,
+                onChanged: (_) => triggerSwitch(),
+                activeColor: const Color(0xFF42A5F5),
+                activeTrackColor: const Color(0xFF1E293B),
+                inactiveThumbColor: const Color(0xFF2E7D32),
+                inactiveTrackColor: const Color(0xFFE8F5E9),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeSwitcherCard(BuildContext context, WidgetRef ref, ThemeMode themeMode) {
+    final isDark = themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system && Theme.of(context).brightness == Brightness.dark);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF3E0),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                  color: isDark ? const Color(0xFF42A5F5) : const Color(0xFFFFA726),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'APARIENCIA',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isDark ? 'Modo Oscuro' : 'Modo Claro',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Switch(
+            value: isDark,
+            onChanged: (val) {
+              ref.read(themeModeProvider.notifier).setThemeMode(
+                    val ? ThemeMode.dark : ThemeMode.light,
+                  );
+            },
+            activeColor: const Color(0xFF42A5F5),
+            activeTrackColor: const Color(0xFF1E293B),
+            inactiveThumbColor: const Color(0xFFFFA726),
+            inactiveTrackColor: const Color(0xFFFFF3E0),
+          ),
+        ],
+      ),
+    );
   }
 }
 
