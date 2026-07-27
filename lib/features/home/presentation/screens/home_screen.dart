@@ -332,15 +332,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (listing.category != null)
-                    Text(
-                      listing.category!.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                      ),
-                    ),
                   authorProfileAsync.when(
                     data: (profile) {
                       final rating = listing.type == ListingType.service
@@ -375,6 +366,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     loading: () => const SizedBox(height: 12),
                     error: (_, __) => const SizedBox(height: 12),
                   ),
+                  if (listing.category != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      listing.category!.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     listing.title,
