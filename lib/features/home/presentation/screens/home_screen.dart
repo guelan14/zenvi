@@ -342,30 +342,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                   authorProfileAsync.when(
-                    data: (profile) => Text(
-                      'Por ${profile?.fullName ?? "Usuario"}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : Colors.black87,
-                      ),
-                    ),
-                    loading: () => Text(
-                      'Por...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white30 : Colors.black38,
-                      ),
-                    ),
-                    error: (_, __) => Text(
-                      'Por Usuario',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white30 : Colors.black38,
-                      ),
-                    ),
+                    data: (profile) {
+                      final rating = listing.type == ListingType.service
+                          ? (profile?.ratingAvgPro ?? 0.0)
+                          : (profile?.ratingAvgClient ?? 0.0);
+                      return Row(
+                        children: [
+                          Text(
+                            profile?.fullName ?? "Usuario",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          if (rating > 0) ...[
+                            const SizedBox(width: 6),
+                            const Icon(Icons.star_rounded, color: Colors.amber, size: 13),
+                            const SizedBox(width: 2),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white30 : Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                    loading: () => const SizedBox(height: 12),
+                    error: (_, __) => const SizedBox(height: 12),
                   ),
                   const SizedBox(height: 2),
                   Text(
