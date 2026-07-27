@@ -24,6 +24,10 @@ CREATE TABLE profiles (
   phone          TEXT,
   rating_avg     NUMERIC(3,2) DEFAULT 0,
   review_count   INT          DEFAULT 0,
+  rating_avg_pro      NUMERIC(3,2) DEFAULT 0,
+  review_count_pro    INT          DEFAULT 0,
+  rating_avg_client   NUMERIC(3,2) DEFAULT 0,
+  review_count_client INT          DEFAULT 0,
   updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -104,6 +108,18 @@ CREATE TABLE user_ratings (
   CONSTRAINT unique_rating_per_request UNIQUE (service_request_id, rater_id)
 );
 
+-- Appointments (scheduled jobs/services with 5 status types)
+CREATE TABLE appointments (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  provider_id    UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  listing_id     UUID REFERENCES listings(id) ON DELETE SET NULL,
+  scheduled_at   TIMESTAMP WITH TIME ZONE NOT NULL,
+  notes          TEXT,
+  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'completed', 'cancelled')),
+  created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ============================================================
 -- 3. INITIAL DATA (Categories)
 -- ============================================================
@@ -129,6 +145,7 @@ ALTER TABLE service_requests  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_ratings      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments      ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 CREATE POLICY "Profiles are viewable by everyone"
@@ -200,6 +217,19 @@ CREATE POLICY "Ratings are publicly viewable"
 CREATE POLICY "Users can submit one rating per service request"
   ON user_ratings FOR INSERT WITH CHECK (auth.uid() = rater_id);
 
+-- Appointments
+CREATE POLICY "Parties can view their appointments"
+  ON appointments FOR SELECT
+  USING (auth.uid() = client_id OR auth.uid() = provider_id);
+
+CREATE POLICY "Clients can create appointments"
+  ON appointments FOR INSERT
+  WITH CHECK (auth.uid() = client_id);
+
+CREATE POLICY "Parties can update appointments"
+  ON appointments FOR UPDATE
+  USING (auth.uid() = client_id OR auth.uid() = provider_id);
+
 -- ============================================================
 -- 5. FUNCTION + TRIGGER: Auto-create profile on Auth signup
 -- ============================================================
@@ -227,13 +257,61 @@ CREATE TRIGGER on_auth_user_created
 
 CREATE OR REPLACE FUNCTION public.update_profile_rating()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_client_id UUID;
+  v_provider_id UUID;
 BEGIN
+  -- Obtener información de la solicitud de servicio vinculada
+  SELECT client_id, provider_id INTO v_client_id, v_provider_id
+  FROM service_requests
+  WHERE id = NEW.service_request_id;
+
+  IF NEW.rated_id = v_provider_id THEN
+    -- Calificado como Profesional
+    UPDATE profiles
+    SET
+      rating_avg_pro   = (
+        SELECT COALESCE(AVG(rating), 0)
+        FROM user_ratings ur
+        JOIN service_requests sr ON ur.service_request_id = sr.id
+        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.provider_id
+      ),
+      review_count_pro = (
+        SELECT COUNT(*)
+        FROM user_ratings ur
+        JOIN service_requests sr ON ur.service_request_id = sr.id
+        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.provider_id
+      ),
+      updated_at   = NOW()
+    WHERE id = NEW.rated_id;
+  ELSIF NEW.rated_id = v_client_id THEN
+    -- Calificado como Cliente
+    UPDATE profiles
+    SET
+      rating_avg_client   = (
+        SELECT COALESCE(AVG(rating), 0)
+        FROM user_ratings ur
+        JOIN service_requests sr ON ur.service_request_id = sr.id
+        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.client_id
+      ),
+      review_count_client = (
+        SELECT COUNT(*)
+        FROM user_ratings ur
+        JOIN service_requests sr ON ur.service_request_id = sr.id
+        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.client_id
+      ),
+      updated_at   = NOW()
+    WHERE id = NEW.rated_id;
+  END IF;
+
+  -- Mantener rating general por compatibilidad
   UPDATE profiles
   SET
-    rating_avg   = (SELECT AVG(rating)   FROM user_ratings WHERE rated_id = NEW.rated_id),
-    review_count = (SELECT COUNT(*)      FROM user_ratings WHERE rated_id = NEW.rated_id),
+    rating_avg   = (SELECT COALESCE(AVG(rating), 0) FROM user_ratings WHERE rated_id = NEW.rated_id),
+    review_count = (SELECT COUNT(*) FROM user_ratings WHERE rated_id = NEW.rated_id),
     updated_at   = NOW()
   WHERE id = NEW.rated_id;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

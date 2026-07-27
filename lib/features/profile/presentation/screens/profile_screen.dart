@@ -32,6 +32,14 @@ class ProfileScreen extends ConsumerWidget {
           }
 
           final isMe = profileId == 'me' || profile.id == currentUser?.id;
+          final listings = listingsAsync.value ?? [];
+          final hasServices = listings.any((l) => l.type == ListingType.service);
+          final ratingToShow = isMe 
+              ? (userMode == UserMode.professional ? profile.ratingAvgPro : profile.ratingAvgClient)
+              : (hasServices ? profile.ratingAvgPro : profile.ratingAvgClient);
+          final reviewCountToShow = isMe
+              ? (userMode == UserMode.professional ? profile.reviewCountPro : profile.reviewCountClient)
+              : (hasServices ? profile.reviewCountPro : profile.reviewCountClient);
 
           return CustomScrollView(
             slivers: [
@@ -180,13 +188,13 @@ class ProfileScreen extends ConsumerWidget {
                     children: [
                       _buildStat(
                         '⭐',
-                        profile.ratingAvg.toStringAsFixed(1),
+                        ratingToShow.toStringAsFixed(1),
                         'Rating',
                       ),
                       _buildStatDivider(),
                       _buildStat(
                         '💼',
-                        profile.reviewCount.toString(),
+                        reviewCountToShow.toString(),
                         'Trabajos',
                       ),
                       _buildStatDivider(),
