@@ -272,33 +272,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildListingItem(Listing listing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authorProfileAsync = ref.watch(profileProvider(listing.authorId));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
+            authorProfileAsync.when(
+              data: (profile) {
+                if (profile == null) {
+                  return Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.person_outline, size: 18, color: isDark ? Colors.white30 : Colors.black38),
+                  );
+                }
+                return CircleAvatar(
+                  radius: 18,
+                  backgroundColor: isDark ? Colors.white10 : Colors.black12,
+                  backgroundImage: profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
+                  child: profile.avatarUrl == null
+                      ? Text(
+                          (profile.fullName ?? 'U')[0].toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        )
+                      : null,
+                );
+              },
+              loading: () => Container(
+                width: 36,
+                height: 36,
+                padding: const EdgeInsets.all(10),
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: isDark ? Colors.white30 : Colors.black26,
+                ),
               ),
-              child: const Icon(Icons.person_outline, size: 18),
+              error: (_, __) => Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.error_outline, size: 18, color: isDark ? Colors.white30 : Colors.black38),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (listing.category != null)
-                    Text(
-                      listing.category!.toUpperCase(),
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? Colors.white54 : Colors.black45),
+                  authorProfileAsync.when(
+                    data: (profile) => Text(
+                      '${profile?.fullName ?? "Usuario"} • ${(listing.category ?? "").toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
                     ),
+                    loading: () => Text(
+                      'CARGANDO... • ${(listing.category ?? "").toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white30 : Colors.black38,
+                      ),
+                    ),
+                    error: (_, __) => Text(
+                      'USUARIO • ${(listing.category ?? "").toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white30 : Colors.black38,
+                      ),
+                    ),
+                  ),
                   Text(
                     listing.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
