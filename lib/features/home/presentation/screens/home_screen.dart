@@ -332,37 +332,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  authorProfileAsync.when(
-                    data: (profile) => Text(
-                      '${profile?.fullName ?? "Usuario"} • ${(listing.category ?? "").toUpperCase()}',
+                  if (listing.category != null)
+                    Text(
+                      listing.category!.toUpperCase(),
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white54 : Colors.black45,
                       ),
                     ),
-                    loading: () => Text(
-                      'CARGANDO... • ${(listing.category ?? "").toUpperCase()}',
+                  authorProfileAsync.when(
+                    data: (profile) => Text(
+                      'Por ${profile?.fullName ?? "Usuario"}',
                       style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    loading: () => Text(
+                      'Por...',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white30 : Colors.black38,
                       ),
                     ),
                     error: (_, __) => Text(
-                      'USUARIO • ${(listing.category ?? "").toUpperCase()}',
+                      'Por Usuario',
                       style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white30 : Colors.black38,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     listing.title,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontSize: 14,
                       color: isDark ? Colors.white : Colors.black87,
                     ),
                     maxLines: 1,
