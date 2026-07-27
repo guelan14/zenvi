@@ -102,7 +102,85 @@ class ListingDetailScreen extends ConsumerWidget {
                         listing.title,
                         style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      if (authorProfileAsync != null)
+                        authorProfileAsync.when(
+                          data: (profile) {
+                            if (profile == null) return const SizedBox.shrink();
+                            final rating = listing.type == ListingType.service ? profile.ratingAvgPro : profile.ratingAvgClient;
+                            final reviews = listing.type == ListingType.service ? profile.reviewCountPro : profile.reviewCountClient;
+                            return InkWell(
+                              onTap: () => context.push('/profile/${listing.authorId}'),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF9F9F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: isDark ? Colors.white10 : Colors.black12,
+                                      backgroundImage: profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
+                                      child: profile.avatarUrl == null
+                                          ? Text(
+                                              (profile.fullName ?? 'U')[0].toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: isDark ? Colors.white : Colors.black87,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${listing.type == ListingType.service ? "Ofrecido" : "Publicado"} por ${profile.fullName ?? "Usuario"}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.white : Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                rating.toStringAsFixed(1),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  color: isDark ? Colors.white : Colors.black87,
+                                                ),
+                                              ),
+                                              Text(
+                                                ' ($reviews valoraciones)',
+                                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 11),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.arrow_forward_ios_rounded, size: 14, color: isDark ? Colors.white30 : Colors.black38),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const ZerviSkeleton.rectangular(width: double.infinity, height: 60, borderRadius: 16),
+                          error: (_, __) => const Text('Error al cargar perfil del autor'),
+                        ),
+                      const SizedBox(height: 16),
                       if (listing.city != null)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,91 +241,6 @@ class ListingDetailScreen extends ConsumerWidget {
                         ),
                       ],
 
-                      const SizedBox(height: 24),
-                      const Divider(),
-                      const SizedBox(height: 24),
-                      Text(
-                        listing.type == ListingType.service ? 'Ofrecido por' : 'Publicado por',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      if (authorProfileAsync != null)
-                        authorProfileAsync.when(
-                          data: (profile) {
-                            if (profile == null) return const SizedBox.shrink();
-                            final rating = listing.type == ListingType.service ? profile.ratingAvgPro : profile.ratingAvgClient;
-                            final reviews = listing.type == ListingType.service ? profile.reviewCountPro : profile.reviewCountClient;
-                            return InkWell(
-                              onTap: () => context.push('/profile/${listing.authorId}'),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF9F9F9),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 28,
-                                      backgroundColor: isDark ? Colors.white10 : Colors.black12,
-                                      backgroundImage: profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
-                                      child: profile.avatarUrl == null
-                                          ? Text(
-                                              (profile.fullName ?? 'U')[0].toUpperCase(),
-                                              style: TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                                color: isDark ? Colors.white : Colors.black87,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            profile.fullName ?? 'Usuario',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: isDark ? Colors.white : Colors.black87,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                rating.toStringAsFixed(1),
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                  color: isDark ? Colors.white : Colors.black87,
-                                                ),
-                                              ),
-                                              Text(
-                                                ' ($reviews valoraciones)',
-                                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(Icons.arrow_forward_ios_rounded, size: 16, color: isDark ? Colors.white30 : Colors.black38),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const ZerviSkeleton.rectangular(width: double.infinity, height: 80, borderRadius: 16),
-                          error: (_, __) => const Text('Error al cargar perfil del autor'),
-                        ),
                       const SizedBox(height: 24),
                       const Divider(),
                       const SizedBox(height: 32),
