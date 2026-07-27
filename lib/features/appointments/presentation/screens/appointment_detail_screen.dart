@@ -6,9 +6,10 @@ import 'package:zenvi/core/theme/zervi_theme.dart';
 import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
-import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
+import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
+import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 
 class AppointmentDetailScreen extends ConsumerWidget {
   final String appointmentId;
@@ -118,7 +119,14 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
 
                 // 6. Botones de Acción
-                _buildActionButtons(context, ref, appointment, isProfessional),
+                _buildActionButtons(
+                  context,
+                  ref,
+                  appointment,
+                  isProfessional,
+                  otherUserId,
+                  currentUserId,
+                ),
                 const SizedBox(height: 40),
               ],
             ),
@@ -226,7 +234,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(ZerviTheme.borderRadius),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.3) : const Color.fromRGBO(0, 0, 0, 0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -237,7 +247,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.black.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -271,7 +283,10 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(
                   '$hourStr hs',
-                  style: TextStyle(fontSize: 15, color: isDark ? Colors.white60 : Colors.black54),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
                 ),
               ],
             ),
@@ -290,7 +305,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(ZerviTheme.borderRadius),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.3) : const Color.fromRGBO(0, 0, 0, 0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -324,7 +341,11 @@ class AppointmentDetailScreen extends ConsumerWidget {
                         decoration: TextDecoration.underline,
                       ),
                     ),
-                    Icon(Icons.chevron_right, size: 14, color: isDark ? Colors.white : Colors.black),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 14,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
                   ],
                 ),
               ),
@@ -350,7 +371,10 @@ class AppointmentDetailScreen extends ConsumerWidget {
               const SizedBox(width: 4),
               Text(
                 listing.city ?? 'Posadas, Misiones',
-                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 13),
+                style: TextStyle(
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -385,7 +409,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(ZerviTheme.borderRadius),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.3) : const Color.fromRGBO(0, 0, 0, 0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -414,7 +440,10 @@ class AppointmentDetailScreen extends ConsumerWidget {
                     ? NetworkImage(profile.avatarUrl!)
                     : null,
                 child: profile.avatarUrl == null || profile.avatarUrl!.isEmpty
-                    ? Icon(Icons.person, color: isDark ? Colors.white54 : Colors.black54)
+                    ? Icon(
+                        Icons.person,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                      )
                     : null,
               ),
               const SizedBox(width: 16),
@@ -469,7 +498,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(ZerviTheme.borderRadius),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.3) : const Color.fromRGBO(0, 0, 0, 0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : const Color.fromRGBO(0, 0, 0, 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -506,6 +537,8 @@ class AppointmentDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     Appointment appointment,
     bool isProfessional,
+    String otherUserId,
+    String? currentUserId,
   ) {
     final repository = ref.read(appointmentRepositoryProvider);
 
@@ -519,6 +552,26 @@ class AppointmentDetailScreen extends ConsumerWidget {
         // Invalidate providers to trigger rebuild of detailed screen & general agenda list
         ref.invalidate(appointmentByIdProvider(appointment.id));
         ref.invalidate(userAppointmentsProvider);
+
+        if (currentUserId != null) {
+          final conversation = await ref
+              .read(chatRepositoryProvider)
+              .getOrCreateConversation(currentUserId, otherUserId);
+
+          final statusLabel = newStatus == AppointmentStatus.accepted
+              ? 'aceptado'
+              : newStatus == AppointmentStatus.rejected
+              ? 'rechazado'
+              : newStatus == AppointmentStatus.completed
+              ? 'marcado como completado'
+              : 'cancelado';
+
+          final messageContent =
+              '🔔 El turno (ID: ${appointment.id}) fue $statusLabel.';
+          await ref
+              .read(chatRepositoryProvider)
+              .sendMessage(conversation.id, currentUserId, messageContent);
+        }
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

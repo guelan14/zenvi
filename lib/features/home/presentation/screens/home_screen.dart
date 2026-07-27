@@ -6,7 +6,7 @@ import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
-import 'package:zenvi/shared/widgets/role_switch_dialog.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -51,91 +51,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         elevation: 0,
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () {
-                  RoleSwitchDialog.show(
-                    context,
-                    switchingToProfessional: userMode == UserMode.client,
-                    onConfirm: () {
-                      ref.read(userModeProvider.notifier).toggleMode();
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            userMode == UserMode.client
-                                ? 'Cambiado a Modo Profesional 🛠️'
-                                : 'Cambiado a Modo Cliente 🔍',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          duration: const Duration(seconds: 1),
-                          backgroundColor: Colors.black,
-                        ),
-                      );
-                    },
-                  );
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: userMode == UserMode.client ? Colors.black : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.black.withValues(alpha: userMode == UserMode.client ? 1.0 : 0.08),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: userMode == UserMode.client ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (userMode == UserMode.client ? const Color(0xFF10B981) : const Color(0xFF3B82F6)).withValues(alpha: 0.4),
-                              blurRadius: 4,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        userMode == UserMode.client ? 'MODO CLIENTE' : 'MODO PRO',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: userMode == UserMode.client ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 14,
-                        color: userMode == UserMode.client ? Colors.white70 : Colors.black54,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: RoleSwitchButton(),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8),

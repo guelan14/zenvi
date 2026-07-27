@@ -9,6 +9,7 @@ import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -76,12 +77,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget build(BuildContext context) {
     final listingsAsync = ref.watch(listingsProvider(_selectedType));
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mapa de Zervi', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text(
+          'Mapa de Zervi',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: RoleSwitchButton(),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -93,18 +106,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               onTap: (_, __) => FocusScope.of(context).unfocus(),
             ),
             children: [
-              ColorFiltered(
-                colorFilter: const ColorFilter.matrix([
-                  0.33, 0.33, 0.33, 0, 0,
-                  0.33, 0.33, 0.33, 0, 0,
-                  0.33, 0.33, 0.33, 0, 0,
-                  0, 0, 0, 1, 0,
-                ]),
-                child: TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.zervi.app',
-                ),
-              ),
+               ColorFiltered(
+                 colorFilter: Theme.of(context).brightness == Brightness.dark
+                     ? const ColorFilter.matrix([
+                         -0.213, -0.715, -0.072, 0, 255,
+                         -0.213, -0.715, -0.072, 0, 255,
+                         -0.213, -0.715, -0.072, 0, 255,
+                         0,      0,      0,      1, 0,
+                       ])
+                     : const ColorFilter.matrix([
+                         0.33, 0.33, 0.33, 0, 0,
+                         0.33, 0.33, 0.33, 0, 0,
+                         0.33, 0.33, 0.33, 0, 0,
+                         0, 0, 0, 1, 0,
+                       ]),
+                 child: TileLayer(
+                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                   userAgentPackageName: 'com.zervi.app',
+                 ),
+               ),
               RichAttributionWidget(
                 alignment: AttributionAlignment.bottomLeft,
                 attributions: [

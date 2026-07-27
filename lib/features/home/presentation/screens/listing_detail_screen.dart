@@ -188,12 +188,19 @@ class ListingDetailScreen extends ConsumerWidget {
                               ),
                               children: [
                                 ColorFiltered(
-                                  colorFilter: const ColorFilter.matrix([
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0, 0, 0, 1, 0,
-                                  ]),
+                                  colorFilter: Theme.of(context).brightness == Brightness.dark
+                                      ? const ColorFilter.matrix([
+                                          -0.213, -0.715, -0.072, 0, 255,
+                                          -0.213, -0.715, -0.072, 0, 255,
+                                          -0.213, -0.715, -0.072, 0, 255,
+                                          0,      0,      0,      1, 0,
+                                        ])
+                                      : const ColorFilter.matrix([
+                                          0.33, 0.33, 0.33, 0, 0,
+                                          0.33, 0.33, 0.33, 0, 0,
+                                          0.33, 0.33, 0.33, 0, 0,
+                                          0, 0, 0, 1, 0,
+                                        ]),
                                   child: TileLayer(
                                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                     userAgentPackageName: 'com.Zervi.app',

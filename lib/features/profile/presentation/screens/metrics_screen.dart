@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 
 class MetricsScreen extends ConsumerWidget {
   const MetricsScreen({super.key});
@@ -17,6 +18,12 @@ class MetricsScreen extends ConsumerWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: RoleSwitchButton(),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -37,6 +44,7 @@ class MetricsScreen extends ConsumerWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
+              childAspectRatio: 1.4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
@@ -144,7 +152,7 @@ class MetricsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   // Gráfico de Barras Custom
                   SizedBox(
-                    height: 120,
+                    height: 130,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -291,7 +299,7 @@ class MetricsScreen extends ConsumerWidget {
       children: [
         Container(
           width: 24,
-          height: 80 * heightPercent,
+          height: 100 * heightPercent,
           decoration: BoxDecoration(
             color: barColor,
             borderRadius: BorderRadius.circular(6),

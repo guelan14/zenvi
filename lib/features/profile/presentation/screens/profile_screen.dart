@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/role_switch_dialog.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
@@ -45,7 +46,11 @@ class ProfileScreen extends ConsumerWidget {
                   onPressed: () => context.pop(),
                 ),
                 actions: [
-                  if (isMe)
+                  if (isMe) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: RoleSwitchButton(),
+                    ),
                     IconButton(
                       icon: const Icon(
                         Icons.logout_rounded,
@@ -53,15 +58,13 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       onPressed: () => _confirmSignOut(context, ref),
                     ),
+                  ],
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (profile.avatarUrl != null)
-                        Image.network(profile.avatarUrl!, fit: BoxFit.cover)
-                      else
-                        Container(color: Colors.black87),
+                      Container(color: Colors.black87),
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -81,6 +84,58 @@ class ProfileScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (profile.avatarUrl != null)
+                              GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      child: InteractiveViewer(
+                                        child: Image.network(
+                                          profile.avatarUrl!,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 40,
+                                    backgroundImage:
+                                        NetworkImage(profile.avatarUrl!),
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                ),
+                                child: const CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 40,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                             Text(
                               profile.fullName ?? 'Usuario',
                               style: const TextStyle(
@@ -427,6 +482,7 @@ class ProfileScreen extends ConsumerWidget {
         switchingToProfessional: isClient,
         onConfirm: () {
           ref.read(userModeProvider.notifier).toggleMode();
+          context.go('/');
           ScaffoldMessenger.of(context).clearSnackBars();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -184,18 +184,24 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           runSpacing: 8,
           children: _categories.map((cat) {
             final isSelected = _selectedCategory == cat;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
             return ChoiceChip(
               label: Text(cat),
               selected: isSelected,
               onSelected: (selected) =>
                   setState(() => _selectedCategory = selected ? cat : null),
-              selectedColor: Colors.black,
+              selectedColor: isDark ? Colors.white : Colors.black,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
+                color: isSelected 
+                    ? (isDark ? Colors.black : Colors.white) 
+                    : (isDark ? Colors.white70 : Colors.black87),
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-              backgroundColor: const Color(0xFFF1F1F1),
+              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+              side: isDark 
+                  ? BorderSide(color: isSelected ? Colors.transparent : Colors.white10) 
+                  : BorderSide.none,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -344,16 +350,16 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F1F1),
+                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.black12,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
                       style: BorderStyle.solid,
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.add_photo_alternate_outlined,
-                    color: Colors.black38,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
                   ),
                 ),
               ),
@@ -410,8 +416,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F1F1),
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
               borderRadius: BorderRadius.circular(12),
+              border: Theme.of(context).brightness == Brightness.dark ? Border.all(color: Colors.white10) : null,
             ),
             child: Text(
               _workMode == WorkMode.presencial
@@ -419,19 +426,26 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                   : _workMode == WorkMode.virtual
                   ? '💻 Todo por videollamada, chat o de forma remota.'
                   : '🔄 Podés trabajar tanto presencial como de forma remota.',
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
+                fontSize: 13,
+              ),
             ),
           )
         else
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F1F1),
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
               borderRadius: BorderRadius.circular(12),
+              border: Theme.of(context).brightness == Brightness.dark ? Border.all(color: Colors.white10) : null,
             ),
-            child: const Text(
+            child: Text(
               '👆 Elegí una opción para continuar.',
-              style: TextStyle(color: Colors.black38, fontSize: 13),
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
+                fontSize: 13,
+              ),
             ),
           ),
       ],
@@ -498,8 +512,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           Container(
             margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Theme.of(context).brightness == Brightness.dark ? Border.all(color: Colors.white10) : null,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -521,16 +536,17 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                 final displayText = state.isNotEmpty ? '$city, $state' : city;
                 return ListTile(
                   dense: true,
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.location_on_outlined,
                     size: 18,
-                    color: Colors.black38,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
                   ),
                   title: Text(
                     displayText,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
                     ),
                   ),
                   onTap: () {
@@ -557,7 +573,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           decoration: BoxDecoration(
             color: _lat != null
                 ? const Color(0xFF10B981).withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.04),
+                : (Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : Colors.black.withValues(alpha: 0.04)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -567,7 +585,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                     ? Icons.location_on_rounded
                     : Icons.info_outline_rounded,
                 size: 18,
-                color: _lat != null ? const Color(0xFF10B981) : Colors.black38,
+                color: _lat != null
+                    ? const Color(0xFF10B981)
+                    : (Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -579,7 +599,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                     fontSize: 12,
                     color: _lat != null
                         ? const Color(0xFF10B981)
-                        : Colors.black38,
+                        : (Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
                     fontWeight: _lat != null
                         ? FontWeight.w600
                         : FontWeight.normal,
@@ -598,25 +618,31 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black.withValues(alpha: 0.07)),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.07),
+              ),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   Icons.my_location_rounded,
                   size: 18,
-                  color: Colors.black54,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
                   'Usar mi ubicación actual',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black54,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
                   ),
                 ),
               ],
@@ -631,7 +657,11 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           height: 220,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.06),
+            ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
@@ -647,28 +677,35 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
               ),
               children: [
                 ColorFiltered(
-                  colorFilter: const ColorFilter.matrix([
-                    0.33,
-                    0.33,
-                    0.33,
-                    0,
-                    0,
-                    0.33,
-                    0.33,
-                    0.33,
-                    0,
-                    0,
-                    0.33,
-                    0.33,
-                    0.33,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                  ]),
+                  colorFilter: Theme.of(context).brightness == Brightness.dark
+                      ? const ColorFilter.matrix([
+                          -0.213, -0.715, -0.072, 0, 255,
+                          -0.213, -0.715, -0.072, 0, 255,
+                          -0.213, -0.715, -0.072, 0, 255,
+                          0,      0,      0,      1, 0,
+                        ])
+                      : const ColorFilter.matrix([
+                          0.33,
+                          0.33,
+                          0.33,
+                          0,
+                          0,
+                          0.33,
+                          0.33,
+                          0.33,
+                          0,
+                          0,
+                          0.33,
+                          0.33,
+                          0.33,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
+                        ]),
                   child: TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -780,8 +817,8 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
             icon: const Icon(Icons.copy_all_rounded, size: 18),
             label: const Text('Copiar Lunes a toda la semana (Mar-Vie)'),
             style: TextButton.styleFrom(
-              foregroundColor: Colors.black54,
-              backgroundColor: const Color(0xFFF1F1F1),
+              foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
+              backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -799,18 +836,23 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
             final actualDay = (dayIndex + 1) % 7;
             final ranges = _dailyRanges[actualDay]!;
             final isEnabled = ranges.isNotEmpty;
+            final isDark = Theme.of(context).brightness == Brightness.dark;
 
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: isEnabled ? Colors.white : const Color(0xFFF9F9F9),
+                color: isEnabled 
+                    ? (isDark ? const Color(0xFF1E222B) : Colors.white) 
+                    : (isDark ? const Color(0xFF14171E) : const Color(0xFFF9F9F9)),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isEnabled ? Colors.black.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05),
+                  color: isEnabled 
+                      ? (isDark ? Colors.white24 : Colors.black.withValues(alpha: 0.15)) 
+                      : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
                 ),
                 boxShadow: isEnabled ? [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 4))
                 ] : [],
               ),
               child: Column(
@@ -820,11 +862,13 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                       dayNames[actualDay],
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: isEnabled ? Colors.black : Colors.black45,
+                        color: isEnabled 
+                            ? (isDark ? Colors.white : Colors.black) 
+                            : (isDark ? Colors.white30 : Colors.black45),
                       ),
                     ),
                     value: isEnabled,
-                    activeColor: Colors.black,
+                    activeColor: isDark ? Colors.white : Colors.black,
                     onChanged: (val) {
                       if (val) {
                         _addRange(actualDay);
@@ -855,7 +899,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                                   ),
                                   const Padding(
                                     padding: EdgeInsets.symmetric(horizontal: 12),
-                                    child: Text('a', style: TextStyle(color: Colors.black45, fontWeight: FontWeight.bold)),
+                                    child: Text('a', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
                                   ),
                                   Expanded(
                                     child: _buildTimeChip(actualDay, rangeIndex, 'end', range['end']!),
@@ -892,19 +936,25 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   }
 
   Widget _buildTimeChip(int day, int rangeIndex, String type, TimeOfDay time) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       onTap: () => _selectTime(day, rangeIndex, type, time),
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F1F1),
+          color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
           borderRadius: BorderRadius.circular(10),
+          border: isDark ? Border.all(color: Colors.white10) : null,
         ),
         alignment: Alignment.center,
         child: Text(
           '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
         ),
       ),
     );
@@ -1008,17 +1058,26 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 18, color: Colors.black45),
-              SizedBox(width: 12),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black45,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'Podés cambiar estas preferencias en cualquier momento desde tu perfil.',
-                  style: TextStyle(color: Colors.black45, fontSize: 12),
+                  style: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black45,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -1036,17 +1095,18 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
     required Color activeColor,
     required ValueChanged<bool> onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: value
-            ? activeColor.withValues(alpha: 0.05)
-            : const Color(0xFFF1F1F1),
+            ? activeColor.withValues(alpha: isDark ? 0.15 : 0.05)
+            : (isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1)),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: value
-              ? activeColor.withValues(alpha: 0.2)
-              : Colors.transparent,
+              ? activeColor.withValues(alpha: isDark ? 0.4 : 0.2)
+              : (isDark ? Colors.white10 : Colors.transparent),
         ),
       ),
       child: Row(
@@ -1054,7 +1114,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: value ? activeColor : Colors.black12,
+              color: value ? activeColor : (isDark ? Colors.white10 : Colors.black12),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white, size: 20),
@@ -1066,14 +1126,18 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: Colors.black45, fontSize: 12),
+                  style: TextStyle(
+                    color: isDark ? Colors.white38 : Colors.black45,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -1087,35 +1151,41 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   Widget _buildStepTitle(String title, String subtitle) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
             letterSpacing: -0.5,
+            color: isDark ? Colors.white : Colors.black87,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           subtitle,
-          style: const TextStyle(color: Colors.black45, fontSize: 14),
+          style: TextStyle(
+            color: isDark ? Colors.white54 : Colors.black45,
+            fontSize: 14,
+          ),
         ),
       ],
     );
   }
 
   Widget _buildSectionLabel(String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, left: 2),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,
-          color: Colors.black38,
+          color: isDark ? Colors.white38 : Colors.black38,
           letterSpacing: 0.5,
         ),
       ),
@@ -1124,6 +1194,13 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
 
   Widget _buildModeButton(WorkMode mode, IconData icon, String label) {
     final isSelected = _workMode != null && _workMode == mode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final selectedBg = isDark ? Colors.white : Colors.black;
+    final unselectedBg = isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1);
+    final selectedFg = isDark ? Colors.black : Colors.white;
+    final unselectedFg = isDark ? Colors.white38 : Colors.black38;
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _workMode = mode),
@@ -1131,14 +1208,17 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.black : const Color(0xFFF1F1F1),
+            color: isSelected ? selectedBg : unselectedBg,
             borderRadius: BorderRadius.circular(16),
+            border: isDark && !isSelected
+                ? Border.all(color: Colors.white10)
+                : null,
           ),
           child: Column(
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.white : Colors.black38,
+                color: isSelected ? selectedFg : unselectedFg,
                 size: 22,
               ),
               const SizedBox(height: 6),
@@ -1147,7 +1227,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : Colors.black38,
+                  color: isSelected ? selectedFg : unselectedFg,
                 ),
               ),
             ],
@@ -1167,10 +1247,12 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
     Function(String)? onChanged,
     bool autofocus = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F1F1),
+        color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
         borderRadius: BorderRadius.circular(16),
+        border: isDark ? Border.all(color: Colors.white10) : null,
       ),
       child: TextField(
         controller: controller,
@@ -1181,17 +1263,27 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           setState(() {});
           if (onChanged != null) onChanged(val);
         },
-        style: const TextStyle(fontSize: 15, color: Colors.black87),
+        style: TextStyle(
+          fontSize: 15,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
+          hintStyle: TextStyle(
+            color: isDark ? Colors.white30 : Colors.black26,
+            fontSize: 14,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 16,
           ),
           prefixIcon: prefixIcon != null
-              ? Icon(prefixIcon, size: 20, color: Colors.black26)
+              ? Icon(
+                  prefixIcon,
+                  size: 20,
+                  color: isDark ? Colors.white38 : Colors.black26,
+                )
               : null,
           suffixIcon: suffix,
         ),
@@ -1386,22 +1478,23 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black54),
+          icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
           onPressed: () => context.pop(),
         ),
         title: Text(
           widget.listingToEdit != null 
               ? 'Editar Publicación' 
               : (_isService ? 'Publicar Servicio' : 'Pedir Trabajo'),
-          style: const TextStyle(
-            color: Colors.black87,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
             fontSize: 17,
             fontWeight: FontWeight.bold,
           ),
@@ -1419,8 +1512,8 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     decoration: BoxDecoration(
                       color: i <= _currentStep
-                          ? Colors.black
-                          : const Color(0xFFEEEEEE),
+                          ? (isDark ? Colors.white : Colors.black)
+                          : (isDark ? Colors.white24 : const Color(0xFFEEEEEE)),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1465,13 +1558,14 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                         height: 52,
                         margin: const EdgeInsets.only(right: 12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F1F1),
+                          color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
                           borderRadius: BorderRadius.circular(16),
+                          border: isDark ? Border.all(color: Colors.white10) : null,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back_ios_new_rounded,
                           size: 18,
-                          color: Colors.black54,
+                          color: isDark ? Colors.white70 : Colors.black54,
                         ),
                       ),
                     ),
@@ -1490,21 +1584,21 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: const Color(0xFFF1F1F1),
-                          disabledForegroundColor: Colors.black26,
+                          backgroundColor: isDark ? Colors.white : Colors.black,
+                          foregroundColor: isDark ? Colors.black : Colors.white,
+                          disabledBackgroundColor: isDark ? Colors.white10 : const Color(0xFFF1F1F1),
+                          disabledForegroundColor: isDark ? Colors.white30 : Colors.black26,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 0,
                         ),
                         child: _isLoading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 22,
                                 height: 22,
                                 child: CircularProgressIndicator(
-                                  color: Colors.white,
+                                  color: isDark ? Colors.black : Colors.white,
                                   strokeWidth: 2.5,
                                 ),
                               )

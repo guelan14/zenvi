@@ -91,7 +91,25 @@ class MainShell extends ConsumerWidget {
       if (dest.route == '/' && location == '/') {
         selectedIndex = i;
         break;
-      } else if (dest.route != '/' && location.startsWith(dest.route.split('/me')[0])) {
+      }
+      
+      if (dest.route == '/messages' && (location.startsWith('/messages') || location.startsWith('/chat'))) {
+        selectedIndex = i;
+        break;
+      }
+      if (dest.route == '/agenda' && (location.startsWith('/agenda') || location.startsWith('/appointment'))) {
+        selectedIndex = i;
+        break;
+      }
+      if (dest.route == '/profile/me' && (location.startsWith('/profile') || location.startsWith('/user'))) {
+        selectedIndex = i;
+        break;
+      }
+      if (dest.route == '/metrics' && location.startsWith('/metrics')) {
+        selectedIndex = i;
+        break;
+      }
+      if (dest.route == '/map' && location.startsWith('/map')) {
         selectedIndex = i;
         break;
       }

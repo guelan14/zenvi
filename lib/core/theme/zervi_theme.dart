@@ -14,6 +14,7 @@ class ZerviTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
+      cardColor: cardColor,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
         surface: cardColor,
@@ -57,6 +58,7 @@ class ZerviTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      cardColor: darkCardColor,
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFFFFFFFF),
         brightness: Brightness.dark,

@@ -36,6 +36,7 @@ class Appointment {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'listing_id': listingId,
       'client_id': customerId,
       'provider_id': professionalId,

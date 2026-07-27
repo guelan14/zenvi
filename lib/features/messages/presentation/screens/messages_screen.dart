@@ -5,6 +5,7 @@ import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/features/messages/domain/models/conversation.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 import 'package:intl/intl.dart';
 
 class MessagesScreen extends ConsumerWidget {
@@ -21,34 +22,61 @@ class MessagesScreen extends ConsumerWidget {
     }
 
     final conversationsAsync = ref.watch(userConversationsStreamProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Mensajes', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-        backgroundColor: Colors.white,
+        title: Text(
+          'Mensajes',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: RoleSwitchButton(),
+          ),
+        ],
       ),
       body: conversationsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+        loading: () => Center(
+          child: CircularProgressIndicator(
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (conversations) {
           if (conversations.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.chat_bubble_outline_rounded, size: 64, color: Colors.black26),
-                  SizedBox(height: 16),
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 64,
+                    color: isDark ? Colors.white30 : Colors.black26,
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     'No tenés mensajes aún',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Cuando contactes a alguien\naparecerá acá.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black45),
+                    style: TextStyle(
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
                   ),
                 ],
               ),
@@ -96,39 +124,51 @@ class _ConversationTile extends ConsumerWidget {
           }
         }
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Container(
           margin: const EdgeInsets.only(bottom: 1),
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             onTap: () {
-              // We need to navigate to ChatScreen. However, ChatScreen currently requires a Listing object!
-              // For now, since ChatScreen requires a Listing, we might have an issue.
-              // Wait, the user accesses chat through listing. So we can't easily jump to ChatScreen without a listing.
-              // Let's create a simplified route or pass a dummy listing, or refactor ChatScreen to accept `String otherUserId` instead of Listing!
               context.push('/chat_user/$otherUserId');
             },
             leading: CircleAvatar(
               radius: 26,
-              backgroundColor: Colors.black12,
+              backgroundColor: isDark ? Colors.white10 : Colors.black12,
               backgroundImage: profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
               child: profile.avatarUrl == null
-                  ? Text((profile.fullName ?? 'U')[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87))
+                  ? Text(
+                      (profile.fullName ?? 'U')[0].toUpperCase(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    )
                   : null,
             ),
             title: Text(
               profile.fullName ?? 'Usuario',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
             ),
             subtitle: Text(
               conversation.lastMessageAt != null ? 'Toca para ver los mensajes' : 'Conversación iniciada',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.black54),
+              style: TextStyle(
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
             ),
             trailing: Text(
               formattedDate,
-              style: const TextStyle(fontSize: 12, color: Colors.black38),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white30 : Colors.black38,
+              ),
             ),
           ),
         );
@@ -136,4 +176,3 @@ class _ConversationTile extends ConsumerWidget {
     );
   }
 }
-

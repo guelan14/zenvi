@@ -7,6 +7,7 @@ import 'package:zenvi/features/appointments/domain/providers/appointment_provide
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
+import 'package:zenvi/shared/widgets/role_switch_button.dart';
 import 'package:intl/intl.dart';
 
 class AppointmentsScreen extends ConsumerStatefulWidget {
@@ -47,6 +48,10 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
         ),
         elevation: 0,
         actions: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: RoleSwitchButton(),
+          ),
           IconButton(
             icon: const Icon(Icons.today),
             onPressed: () {

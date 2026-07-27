@@ -8,6 +8,7 @@ import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
 import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
+import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -33,24 +34,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conversationAsync = ref.watch(currentConversationProvider(targetUserId));
     final profileAsync = ref.watch(profileProvider(targetUserId));
 
+    final conversation = conversationAsync.value;
+    Listing? activeListing = widget.listing;
+    if (activeListing == null && conversation != null && conversation.serviceRequestId != null) {
+      final listingAsync = ref.watch(listingByIdProvider(conversation.serviceRequestId!));
+      activeListing = listingAsync.value;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
+          onPressed: () => context.pop(),
+        ),
         title: profileAsync.when(
           loading: () => const Text('Cargando...'),
           error: (_, __) => const Text('Error al cargar'),
           data: (profile) {
-            final name = profile?.fullName ?? widget.listing?.title ?? 'Usuario';
+            final name = profile?.fullName ?? activeListing?.title ?? 'Usuario';
             final avatarUrl = profile?.avatarUrl;
             
             return Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: Colors.black12,
+                  backgroundColor: isDark ? Colors.white10 : Colors.black12,
                   backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null ? Text(name[0].toUpperCase()) : null,
+                  child: avatarUrl == null 
+                      ? Text(
+                          name[0].toUpperCase(),
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        ) 
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -59,14 +77,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     children: [
                       Text(
                         name,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (widget.listing != null)
+                      if (activeListing != null)
                         Text(
-                          widget.listing!.title,
-                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          activeListing.title,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -80,26 +105,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         actions: [
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.more_vert, color: Colors.black),
+            icon: Icon(Icons.more_vert, color: isDark ? Colors.white : Colors.black),
           ),
         ],
       ),
       body: Column(
         children: [
           // ─── Banner de Turno ───────────────────────────────────────────────
-          if (widget.listing != null) _buildAppointmentBanner(),
+          if (activeListing != null) _buildAppointmentBanner(activeListing),
 
-          // ─── Lista de Mensajes ─────────────────────────────────────────────
           Expanded(
             child: conversationAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+              loading: () => Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black)),
               error: (err, _) => Center(child: Text('Error: $err')),
               data: (conversation) {
                 if (conversation == null) return const Center(child: Text('No se pudo cargar la conversación'));
                 
                 final messagesAsync = ref.watch(messagesStreamProvider(conversation.id));
                 return messagesAsync.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: Colors.black)),
+                  loading: () => Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.black)),
                   error: (err, _) => Center(child: Text('Error: $err')),
                   data: (messages) {
                     return ListView.builder(
@@ -132,45 +156,53 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildAppointmentBanner() {
+  Widget _buildAppointmentBanner(Listing listing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.05))),
+        color: Theme.of(context).cardColor,
+        border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.05),
+              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.calendar_today_rounded, size: 20, color: Colors.black87),
+            child: Icon(Icons.calendar_today_rounded, size: 20, color: isDark ? Colors.white : Colors.black87),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '¿Querés agendar un turno?',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
                 ),
                 Text(
                   'Consultá los horarios disponibles.',
-                  style: TextStyle(fontSize: 11, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
                 ),
               ],
             ),
           ),
           ElevatedButton(
-            onPressed: () => _showRequestAppointment(context, ref),
+            onPressed: () => _showRequestAppointment(context, ref, listing),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
+              backgroundColor: isDark ? Colors.white : Colors.black,
+              foregroundColor: isDark ? Colors.black : Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -194,21 +226,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       displayText = text.replaceAll(regExp, '').trim();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (hasAppointmentId && appointmentId != null) {
+      final cardColor = isMe 
+          ? (isDark ? Colors.white : Colors.black87) 
+          : (isDark ? const Color(0xFF1E222B) : Colors.white);
+      final borderColor = isMe 
+          ? (isDark ? Colors.white : Colors.black) 
+          : (isDark ? Colors.white10 : Colors.black12);
+      final iconColor = isMe 
+          ? (isDark ? Colors.black : Colors.white) 
+          : Colors.blue[600];
+      final textColor = isMe 
+          ? (isDark ? Colors.black : Colors.white) 
+          : (isDark ? Colors.white : Colors.black87);
+      final actionTextColor = isMe 
+          ? (isDark ? Colors.black : Colors.white) 
+          : (isDark ? Colors.blue[400] : Colors.blue[700]);
+
       return Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
           decoration: BoxDecoration(
-            color: isMe ? Colors.black87 : Colors.white,
+            color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isMe ? Colors.black : Colors.black12,
-            ),
+            border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -224,7 +272,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   children: [
                     Icon(
                       Icons.calendar_month_rounded,
-                      color: isMe ? Colors.white : Colors.blue[600],
+                      color: iconColor,
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -232,7 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       child: Text(
                         displayText,
                         style: TextStyle(
-                          color: isMe ? Colors.white : Colors.black87,
+                          color: textColor,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -241,7 +289,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ),
-              const Divider(height: 1, thickness: 1, color: Colors.black12),
+              Divider(height: 1, thickness: 1, color: isDark ? Colors.white10 : Colors.black12),
               InkWell(
                 onTap: () => context.push('/appointment/$appointmentId'),
                 borderRadius: const BorderRadius.only(
@@ -255,7 +303,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: Text(
                     'Ver Detalle del Turno',
                     style: TextStyle(
-                      color: isMe ? Colors.white : Colors.blue[700],
+                      color: actionTextColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -268,6 +316,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
 
+    final bubbleBg = isMe
+        ? (isDark ? Colors.white : Colors.black)
+        : (isDark ? const Color(0xFF1E222B) : Colors.white);
+    final bubbleTextColor = isMe
+        ? (isDark ? Colors.black : Colors.white)
+        : (isDark ? Colors.white : Colors.black87);
+    final border = isDark && !isMe ? Border.all(color: Colors.white10) : null;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -275,7 +331,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: isMe ? Colors.black : Colors.white,
+          color: bubbleBg,
+          border: border,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -285,7 +342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           boxShadow: [
             if (!isMe)
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                 blurRadius: 5,
                 offset: const Offset(0, 2),
               ),
@@ -294,7 +351,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Text(
           text,
           style: TextStyle(
-            color: isMe ? Colors.white : Colors.black87,
+            color: bubbleTextColor,
             fontSize: 14,
           ),
         ),
@@ -303,27 +360,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildSystemMessage(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.05),
+          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           text,
-          style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.white54 : Colors.black45,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildInput(String? conversationId, String? currentUserId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(top: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFEEEEEE))),
       ),
       child: Row(
         children: [
@@ -331,15 +394,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F1F1),
+                color: isDark ? const Color(0xFF14171E) : const Color(0xFFF1F1F1),
                 borderRadius: BorderRadius.circular(24),
+                border: isDark ? Border.all(color: Colors.white10) : null,
               ),
               child: TextField(
                 controller: _messageController,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 14,
+                ),
+                decoration: InputDecoration(
                   hintText: 'Escribí un mensaje...',
                   border: InputBorder.none,
-                  hintStyle: TextStyle(fontSize: 14, color: Colors.black38),
+                  hintStyle: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white30 : Colors.black38,
+                  ),
                 ),
                 onSubmitted: (_) {
                   _sendMessage(conversationId, currentUserId);
@@ -349,10 +420,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           const SizedBox(width: 12),
           Container(
-            decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white : Colors.black,
+              shape: BoxShape.circle,
+            ),
             child: IconButton(
               onPressed: () => _sendMessage(conversationId, currentUserId),
-              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              icon: Icon(
+                Icons.send_rounded,
+                color: isDark ? Colors.black : Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -372,9 +450,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref) async {
-    if (widget.listing == null) return;
-    
+  Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref, Listing listing) async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -383,66 +459,275 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
-    final date = await showDatePicker(
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+    final notesController = TextEditingController();
+
+    await showModalBottomSheet<void>(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E222B) : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Solicitar Turno',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Elegí la fecha y hora para el servicio.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Botón de fecha
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now().add(const Duration(days: 1)),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(const Duration(days: 30)),
+                            );
+                            if (date != null) {
+                              setState(() => selectedDate = date);
+                            }
+                          },
+                          icon: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          label: Text(
+                            selectedDate == null
+                                ? 'Seleccionar Fecha'
+                                : DateFormat('dd/MM/yyyy').format(selectedDate!),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: isDark ? Colors.white10 : Colors.black12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Botón de hora
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: const TimeOfDay(hour: 9, minute: 0),
+                            );
+                            if (time != null) {
+                              setState(() => selectedTime = time);
+                            }
+                          },
+                          icon: Icon(
+                            Icons.access_time_rounded,
+                            size: 18,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          label: Text(
+                            selectedTime == null
+                                ? 'Seleccionar Hora'
+                                : selectedTime!.format(context),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                              color: isDark ? Colors.white10 : Colors.black12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Campo de notas
+                  Text(
+                    'Notas o indicaciones especiales',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Detallá tu necesidad o indicaciones para llegar...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white30 : Colors.black38,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  
+                  // Botón confirmar
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: (selectedDate == null || selectedTime == null)
+                          ? null
+                          : () async {
+                              final start = DateTime(
+                                selectedDate!.year,
+                                selectedDate!.month,
+                                selectedDate!.day,
+                                selectedTime!.hour,
+                                selectedTime!.minute,
+                              );
+
+                              final appointment = Appointment(
+                                id: const Uuid().v4(),
+                                listingId: listing.id,
+                                customerId: user.id,
+                                professionalId: listing.authorId,
+                                scheduledAt: start,
+                                notes: notesController.text.trim().isNotEmpty
+                                    ? notesController.text.trim()
+                                    : null,
+                                createdAt: DateTime.now(),
+                              );
+
+                              try {
+                                await ref
+                                    .read(appointmentRepositoryProvider)
+                                    .createAppointment(appointment);
+
+                                final dateStr = DateFormat('dd/MM/yyyy').format(start);
+                                final timeStr = DateFormat('HH:mm').format(start);
+                                final messageContent =
+                                    '📅 Solicitó un turno para el día $dateStr a las $timeStr hs. (ID: ${appointment.id})';
+
+                                final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
+                                if (targetUserId != null) {
+                                  final conversation = ref
+                                      .read(currentConversationProvider(targetUserId))
+                                      .value;
+                                  if (conversation != null) {
+                                    await ref
+                                        .read(chatRepositoryProvider)
+                                        .sendMessage(
+                                          conversation.id,
+                                          user.id,
+                                          messageContent,
+                                        );
+                                  }
+                                }
+
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Turno solicitado con éxito'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? Colors.white : Colors.black,
+                        foregroundColor: isDark ? Colors.black : Colors.white,
+                        disabledBackgroundColor: isDark ? Colors.white10 : Colors.black12,
+                        disabledForegroundColor: isDark ? Colors.white30 : Colors.black38,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Solicitar Turno',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-
-    if (date == null) return;
-
-    if (!mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 9, minute: 0),
-    );
-
-    if (time == null) return;
-
-    final start = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-
-    final appointment = Appointment(
-      id: const Uuid().v4(),
-      listingId: widget.listing!.id,
-      customerId: user.id,
-      professionalId: widget.listing!.authorId,
-      scheduledAt: start,
-      createdAt: DateTime.now(),
-    );
-
-    try {
-      await ref.read(appointmentRepositoryProvider).createAppointment(appointment);
-      
-      // Enviar un mensaje de chat con el ID del turno embebido para notificar a la otra parte
-      final dateStr = DateFormat('dd/MM/yyyy').format(start);
-      final timeStr = DateFormat('HH:mm').format(start);
-      final messageContent = '📅 Solicitó un turno para el día $dateStr a las $timeStr hs. (ID: ${appointment.id})';
-      
-      final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
-      if (targetUserId != null) {
-        final conversation = ref.read(currentConversationProvider(targetUserId)).value;
-        if (conversation != null) {
-          await ref.read(chatRepositoryProvider).sendMessage(
-            conversation.id,
-            user.id,
-            messageContent,
-          );
-        }
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Turno solicitado con éxito'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al solicitar turno: $e')),
-      );
-    }
   }
 }
