@@ -67,96 +67,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: userMode == UserMode.professional
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Text(
-                    'Mis Servicios',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                    ),
+      body: Column(
+        children: [
+          // Barra de Búsqueda Compacta
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onSubmitted: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                    _activeCategory = null;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: userMode == UserMode.client
+                      ? '¿Qué estás buscando?'
+                      : 'Buscar trabajos y pedidos...',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  icon: Icon(
+                    Icons.search,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54,
+                    size: 20,
                   ),
                 ),
-                Expanded(
-                  child: myServicesAsync.when(
-                    data: (listings) {
-                      final myServices = listings.where((l) => l.type == ListingType.service).toList();
-
-                      if (myServices.isEmpty) {
-                        return _buildProfessionalEmptyState(context);
-                      }
-
-                      return RefreshIndicator(
-                        onRefresh: () => ref.refresh(profileListingsProvider('me').future),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: myServices.length,
-                          itemBuilder: (context, index) {
-                            final listing = myServices[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: ZerviCard(
-                                onTap: () => context.push('/listing/${listing.id}'),
-                                child: _buildListingItem(listing),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                    loading: () => ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: 2,
-                      itemBuilder: (context, index) => const Padding(
-                        padding: EdgeInsets.only(bottom: 16),
-                        child: ZerviListingSkeleton(),
-                      ),
-                    ),
-                    error: (err, stack) => Center(child: Text('Error: $err')),
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              children: [
-                // Barra de Búsqueda Compacta
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onSubmitted: (val) {
-                        setState(() {
-                          _searchQuery = val;
-                          _activeCategory = null;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: '¿Qué estás buscando?',
-                        hintStyle: TextStyle(
-                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
-                          fontSize: 14,
-                        ),
-                        border: InputBorder.none,
-                        icon: Icon(
-                          Icons.search,
-                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              ),
+            ),
+          ),
                 const SizedBox(height: 8),
 
                 SizedBox(
@@ -236,7 +183,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }).toList();
 
         if (filteredListings.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyState(ref.read(userModeProvider));
         }
 
         return RefreshIndicator(
@@ -453,7 +400,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(UserMode userMode) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -461,12 +409,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Icon(
             Icons.search_off_rounded,
             size: 48,
-            color: Colors.black.withValues(alpha: 0.1),
+            color: isDark ? Colors.white30 : Colors.black.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No hay resultados.',
-            style: TextStyle(color: Colors.black54, fontSize: 14),
+          Text(
+            userMode == UserMode.client
+                ? 'No hay servicios disponibles.'
+                : 'No hay trabajos o pedidos disponibles.',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14),
           ),
         ],
       ),
