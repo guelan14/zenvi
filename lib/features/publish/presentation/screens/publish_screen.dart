@@ -26,7 +26,7 @@ class PublishScreen extends ConsumerStatefulWidget {
 class _PublishScreenState extends ConsumerState<PublishScreen> {
   bool _isLoading = false;
   int _currentStep = 0;
-  static const int _totalSteps = 6;
+  int get _totalSteps => _isService ? 6 : 5;
   late ListingType _type;
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
@@ -375,11 +375,13 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildStepTitle(
-          'Precio y Modalidad',
-          'Estos datos ayudan a filtrar y encontrarte más fácil.',
+          _isService ? 'Precio y Modalidad' : 'Presupuesto y Modalidad',
+          _isService
+              ? 'Estos datos ayudan a filtrar y encontrarte más fácil.'
+              : 'Indicá tu presupuesto estimado y la modalidad requerida.',
         ),
         const SizedBox(height: 32),
-        _buildSectionLabel('Precio sugerido (opcional)'),
+        _buildSectionLabel(_isService ? 'Precio sugerido (opcional)' : 'Presupuesto estimado (opcional)'),
         _buildTextField(
           controller: _priceController,
           hint: 'Ej: 5000',
@@ -387,7 +389,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           prefixIcon: Icons.payments_outlined,
         ),
         const SizedBox(height: 40),
-        _buildSectionLabel('¿Cómo trabajás?'),
+        _buildSectionLabel(_isService ? '¿Cómo trabajás?' : '¿Cómo se realizará el trabajo?'),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -422,10 +424,10 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
             ),
             child: Text(
               _workMode == WorkMode.presencial
-                  ? '🏠 Vas al lugar del cliente o el cliente viene a vos.'
+                  ? (_isService ? '🏠 Vas al lugar del cliente o el cliente viene a vos.' : '🏠 El profesional debe asistir a tu ubicación.')
                   : _workMode == WorkMode.virtual
-                  ? '💻 Todo por videollamada, chat o de forma remota.'
-                  : '🔄 Podés trabajar tanto presencial como de forma remota.',
+                  ? (_isService ? '💻 Todo por videollamada, chat o de forma remota.' : '💻 El trabajo se realiza de manera remota (videollamada, chat, etc.).')
+                  : (_isService ? '🔄 Podés trabajar tanto presencial como de forma remota.' : '🔄 El trabajo puede combinar tareas presenciales y virtuales.'),
               style: TextStyle(
                 color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54,
                 fontSize: 13,
@@ -458,8 +460,10 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildStepTitle(
-          '¿Dónde trabajás?',
-          'Podés escribir cualquier ciudad, barrio o zona.',
+          _isService ? '¿Dónde trabajás?' : '¿Dónde se realizará?',
+          _isService
+              ? 'Podés escribir cualquier ciudad, barrio o zona.'
+              : 'Indicá la ciudad o zona donde se necesita el servicio.',
         ),
         const SizedBox(height: 32),
 
@@ -1027,14 +1031,18 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
       children: [
         _buildStepTitle(
           'Preferencias finales',
-          'Configurá cómo querés trabajar y recibir avisos.',
+          _isService
+              ? 'Configurá cómo querés trabajar y recibir avisos.'
+              : 'Configurá las notificaciones y nivel de urgencia del pedido.',
         ),
         const SizedBox(height: 32),
 
         // Urgencias
         _buildPreferenceTile(
-          title: 'Atención de Urgencias',
-          subtitle: '¿Recibís llamadas fuera de hora?',
+          title: _isService ? 'Atención de Urgencias' : 'Pedido Urgente',
+          subtitle: _isService
+              ? '¿Recibís llamadas fuera de hora?'
+              : '¿Necesitás que te contacten de forma prioritaria?',
           icon: Icons.flash_on_rounded,
           value: _acceptsEmergencies,
           activeColor: Colors.red,
@@ -1043,11 +1051,11 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
 
         const SizedBox(height: 16),
 
-        // Notificaciones
         _buildPreferenceTile(
-          title: 'Notificaciones de Trabajos',
-          subtitle:
-              'Avisame cuando alguien pida un ${_selectedCategory ?? 'servicio'}',
+          title: _isService ? 'Notificaciones de Pedidos' : 'Notificaciones de Respuestas',
+          subtitle: _isService
+              ? 'Avisame cuando un cliente publique un pedido en ${_selectedCategory ?? "esta categoría"}'
+              : 'Avisame cuando los profesionales respondan a mi pedido',
           icon: Icons.notifications_active_rounded,
           value: _notifyNewJobs,
           activeColor: Colors.blue,
@@ -1346,22 +1354,40 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   }
 
   bool _canGoNext() {
-    switch (_currentStep) {
-      case 0:
-        return _titleController.text.trim().isNotEmpty &&
-            _selectedCategory != null;
-      case 1:
-        return _descriptionController.text.trim().isNotEmpty;
-      case 2:
-        return _workMode != null; // Modalidad es obligatoria
-      case 3: // Ubicación
-        return _cityController.text.isNotEmpty;
-      case 4:
-        return true; // Disponibilidad es opcional
-      case 5:
-        return true; // Preferencias son opcionales
-      default:
-        return true;
+    if (_isService) {
+      switch (_currentStep) {
+        case 0:
+          return _titleController.text.trim().isNotEmpty &&
+              _selectedCategory != null;
+        case 1:
+          return _descriptionController.text.trim().isNotEmpty;
+        case 2:
+          return _workMode != null;
+        case 3:
+          return _cityController.text.isNotEmpty;
+        case 4:
+          return true; // Disponibilidad (opcional)
+        case 5:
+          return true; // Preferencias (opcional)
+        default:
+          return true;
+      }
+    } else {
+      switch (_currentStep) {
+        case 0:
+          return _titleController.text.trim().isNotEmpty &&
+              _selectedCategory != null;
+        case 1:
+          return _descriptionController.text.trim().isNotEmpty;
+        case 2:
+          return _workMode != null;
+        case 3:
+          return _cityController.text.isNotEmpty;
+        case 4:
+          return true; // Preferencias (opcional)
+        default:
+          return true;
+      }
     }
   }
 
@@ -1389,15 +1415,36 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         final filePath = '${user.id}/$fileName';
         try {
           final bytes = await file.readAsBytes();
+          
+          final extension = file.name.split('.').last.toLowerCase();
+          final String contentType;
+          if (extension == 'png') {
+            contentType = 'image/png';
+          } else if (extension == 'webp') {
+            contentType = 'image/webp';
+          } else if (extension == 'gif') {
+            contentType = 'image/gif';
+          } else {
+            contentType = 'image/jpeg';
+          }
+
           await Supabase.instance.client.storage
               .from('listings')
-              .uploadBinary(filePath, bytes);
+              .uploadBinary(
+                filePath,
+                bytes,
+                fileOptions: FileOptions(
+                  contentType: contentType,
+                  upsert: true,
+                ),
+              );
           final imageUrl = Supabase.instance.client.storage
               .from('listings')
               .getPublicUrl(filePath);
           uploadedImageUrls.add(imageUrl);
         } catch (e) {
           debugPrint('Error uploading image: $e');
+          throw 'Error al subir la imagen "${file.name}": $e';
         }
       }
 
@@ -1536,9 +1583,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                   ? _buildStep3()
                   : _currentStep == 3
                   ? _buildStep4()
-                  : _currentStep == 4
-                  ? _buildStep5()
-                  : _buildStep6(),
+                  : _isService
+                      ? (_currentStep == 4 ? _buildStep5() : _buildStep6())
+                      : _buildStep6(),
             ),
           ),
           // Botón fijo en la parte inferior, NO afectado por el teclado

@@ -119,7 +119,7 @@ class MainShell extends ConsumerWidget {
       body: child,
       // ─── FAB ─────────────────────────────────────────────────────────────
       floatingActionButton: location == '/'
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: () {
                 if (userMode == UserMode.client) {
                   context.push('/publish?type=job');
@@ -129,8 +129,12 @@ class MainShell extends ConsumerWidget {
               },
               backgroundColor: isDark ? Colors.white : Colors.black,
               foregroundColor: isDark ? Colors.black : Colors.white,
-              shape: const CircleBorder(),
-              child: const Icon(Icons.add, size: 28),
+              icon: const Icon(Icons.add, size: 20),
+              label: Text(
+                userMode == UserMode.client ? 'Publicar Pedido' : 'Ofrecer Servicio',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,

@@ -7,6 +7,7 @@ import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/widgets/role_switch_button.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -36,7 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final targetType = userMode == UserMode.client ? ListingType.service : ListingType.job;
     final listingsAsync = ref.watch(listingsProvider(targetType));
     final categoriesAsync = ref.watch(categoriesProvider);
-    final myServicesAsync = ref.watch(profileListingsProvider('me'));
+    final currentUserId = ref.watch(currentUserProvider)?.id;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -163,18 +164,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const SizedBox(height: 12),
 
                 // Listado Principal
-                Expanded(
-                  child: _buildList(listingsAsync, targetType),
+                 Expanded(
+                  child: _buildList(listingsAsync, targetType, currentUserId),
                 ),
               ],
             ),
     );
   }
 
-  Widget _buildList(AsyncValue<List<Listing>> listingsAsync, ListingType targetType) {
+  Widget _buildList(AsyncValue<List<Listing>> listingsAsync, ListingType targetType, String? currentUserId) {
     return listingsAsync.when(
       data: (listings) {
         final filteredListings = listings.where((l) {
+          if (l.authorId == currentUserId) return false;
           if (_activeCategory != null) return l.category == _activeCategory;
           if (_searchQuery.isEmpty) return true;
           final q = _searchQuery.toLowerCase();
@@ -279,6 +281,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    listing.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (listing.category != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      listing.category!.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
                   authorProfileAsync.when(
                     data: (profile) {
                       final rating = listing.type == ListingType.service
@@ -312,29 +337,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     loading: () => const SizedBox(height: 12),
                     error: (_, __) => const SizedBox(height: 12),
-                  ),
-                  if (listing.category != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      listing.category!.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 2),
-                  Text(
-                    listing.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

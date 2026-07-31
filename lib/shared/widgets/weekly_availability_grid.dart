@@ -17,16 +17,21 @@ class WeeklyAvailabilityGrid extends StatelessWidget {
       groupedSlots[slot.dayOfWeek]!.add(slot);
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (groupedSlots.isEmpty) {
-      return const Text('Consultar disponibilidad por chat.', style: TextStyle(color: Colors.black45, fontSize: 14));
+      return Text(
+        'Consultar disponibilidad por chat.',
+        style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 14),
+      );
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F9F9),
+        color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF9F9F9),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: List.generate(7, (index) {
@@ -53,13 +58,21 @@ class WeeklyAvailabilityGrid extends StatelessWidget {
                   width: 100,
                   child: Text(
                     days[actualDay],
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     timeStrings,
-                    style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
