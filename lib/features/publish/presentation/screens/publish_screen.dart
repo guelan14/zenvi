@@ -1415,10 +1415,13 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   }
 
   Future<void> _handlePublish() async {
-    final user = ref.read(currentUserProvider);
+    var user = ref.read(currentUserProvider);
     if (user == null) {
-      context.push('/auth');
-      return;
+      await context.push('/auth');
+      user = ref.read(currentUserProvider);
+      if (user == null) {
+        return;
+      }
     }
     setState(() => _isLoading = true);
     try {

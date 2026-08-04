@@ -27,7 +27,6 @@ const _protectedRoutes = {
   '/chat_user',
   '/appointment',
   '/metrics',
-  '/publish',
 };
 
 // ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────

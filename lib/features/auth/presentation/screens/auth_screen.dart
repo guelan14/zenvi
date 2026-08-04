@@ -126,7 +126,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.go('/');
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/');
+        }
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -139,7 +143,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               padding: const EdgeInsets.only(right: 12),
               child: IconButton(
                 icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black87, size: 28),
-                onPressed: () => context.go('/'),
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
               ),
             ),
           ],
