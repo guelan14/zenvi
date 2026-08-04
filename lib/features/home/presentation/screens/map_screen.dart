@@ -92,12 +92,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        actions: const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: RoleSwitchButton(),
-          ),
-        ],
       ),
       body: Stack(
         children: [

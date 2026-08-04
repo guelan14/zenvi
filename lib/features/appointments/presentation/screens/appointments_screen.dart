@@ -48,10 +48,6 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
         ),
         elevation: 0,
         actions: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: RoleSwitchButton(),
-          ),
           IconButton(
             icon: const Icon(Icons.today),
             onPressed: () {

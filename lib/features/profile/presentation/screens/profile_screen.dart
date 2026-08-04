@@ -483,6 +483,7 @@ class ProfileScreen extends ConsumerWidget {
 
   Widget _buildRoleSwitcherCard(BuildContext context, WidgetRef ref, UserMode userMode) {
     final isClient = userMode == UserMode.client;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final triggerSwitch = () {
       RoleSwitchDialog.show(
@@ -495,105 +496,97 @@ class ProfileScreen extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                isClient
-                    ? 'Cambiado a Modo Profesional 🛠️'
-                    : 'Cambiado a Modo Cliente 🔍',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                isClient ? 'Modo Profesional activado' : 'Modo Cliente activado',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              duration: const Duration(seconds: 1),
-              backgroundColor: Colors.black,
+              duration: const Duration(seconds: 2),
+              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFF0F0F0F),
             ),
           );
         },
       );
     };
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: triggerSwitch,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            gradient: isClient
-                ? const LinearGradient(
-                    colors: [Colors.white, Color(0xFFF9FBF9)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : const LinearGradient(
-                    colors: [Color(0xFF111111), Color(0xFF222222)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isClient ? Colors.black.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.08),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isClient ? 0.03 : 0.15),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E222B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isClient ? const Color(0xFFE8F5E9) : const Color(0xFF1E293B),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isClient ? Icons.search_rounded : Icons.construction_rounded,
-                      color: isClient ? const Color(0xFF2E7D32) : const Color(0xFF42A5F5),
-                      size: 24,
-                    ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: triggerSwitch,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                // Icono a la izquierda
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isClient
+                        ? (isDark ? const Color(0xFF1E3A20) : const Color(0xFFE8F5E9))
+                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE3F2FD)),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 16),
-                  Column(
+                  child: Icon(
+                    isClient ? Icons.storefront_rounded : Icons.search_rounded,
+                    color: isClient
+                        ? (isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32))
+                        : (isDark ? const Color(0xFF64B5F6) : const Color(0xFF1565C0)),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Textos del switch en el centro
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'MODO DE USO',
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: isClient ? Colors.black54 : Colors.white54,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isClient ? 'Buscar Profesionales' : 'Ofrecer Trabajo (Pro)',
+                        isClient ? 'Cambiar al modo profesional' : 'Cambiar al modo cliente',
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isClient ? Colors.black87 : Colors.white,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black87,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        isClient
+                            ? 'Ofrecé tus servicios y gestioná tus trabajos'
+                            : 'Buscá especialistas y pedí presupuestos',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              Switch(
-                value: !isClient,
-                onChanged: (_) => triggerSwitch(),
-                activeColor: const Color(0xFF42A5F5),
-                activeTrackColor: const Color(0xFF1E293B),
-                inactiveThumbColor: const Color(0xFF2E7D32),
-                inactiveTrackColor: const Color(0xFFE8F5E9),
-              ),
-            ],
+                ),
+                const SizedBox(width: 8),
+                // Icono de chevron a la derecha
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                  size: 24,
+                ),
+              ],
+            ),
           ),
         ),
       ),

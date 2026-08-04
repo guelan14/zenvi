@@ -54,11 +54,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         centerTitle: true,
         elevation: 0,
-        leadingWidth: 140,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 16.0, top: 8.0, bottom: 8.0),
-          child: RoleSwitchButton(),
-        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
