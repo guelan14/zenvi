@@ -42,7 +42,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     redirect: (context, state) {
       final isAuthenticated = ref.read(isAuthenticatedProvider);
-      final location = state.matchedLocation;
+      final location = state.uri.path;
 
       // Not authenticated + protected route → send to /auth
       if (!isAuthenticated && _protectedRoutes.any((route) => location.startsWith(route))) {
