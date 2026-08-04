@@ -19,7 +19,16 @@ import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/profile/presentation/screens/metrics_screen.dart';
 
 /// Routes that require authentication. Unauthenticated access redirects to /auth.
-const _protectedRoutes = {'/messages', '/profile/me', '/agenda', '/chat', '/appointment', '/metrics'};
+const _protectedRoutes = {
+  '/messages',
+  '/profile/me',
+  '/agenda',
+  '/chat',
+  '/chat_user',
+  '/appointment',
+  '/metrics',
+  '/publish',
+};
 
 // ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────
 
@@ -43,6 +52,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isAuthenticated = ref.read(isAuthenticatedProvider);
       final location = state.uri.path;
+      print('DEBUG ROUTER: location=$location, isAuthenticated=$isAuthenticated');
 
       // Not authenticated + protected route → send to /auth
       if (!isAuthenticated && _protectedRoutes.any((route) => location.startsWith(route))) {
