@@ -22,7 +22,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   ListingType _selectedType = ListingType.service;
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<Listing> _listingSuggestions = [];
   bool _isSearching = false;
   LatLng? _userLocation;
@@ -40,7 +40,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
       // Empezamos a seguir la ubicación del usuario
       Geolocator.getPositionStream().listen((Position position) {
         if (mounted) {
@@ -61,7 +62,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo obtener tu ubicación actual')),
+          const SnackBar(
+            content: Text('No se pudo obtener tu ubicación actual'),
+          ),
         );
       }
     }
@@ -106,31 +109,65 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               onTap: (_, __) => FocusScope.of(context).unfocus(),
             ),
             children: [
-               ColorFiltered(
-                 colorFilter: Theme.of(context).brightness == Brightness.dark
-                     ? const ColorFilter.matrix([
-                         -0.213, -0.715, -0.072, 0, 255,
-                         -0.213, -0.715, -0.072, 0, 255,
-                         -0.213, -0.715, -0.072, 0, 255,
-                         0,      0,      0,      1, 0,
-                       ])
-                     : const ColorFilter.matrix([
-                         0.33, 0.33, 0.33, 0, 0,
-                         0.33, 0.33, 0.33, 0, 0,
-                         0.33, 0.33, 0.33, 0, 0,
-                         0, 0, 0, 1, 0,
-                       ]),
-                 child: TileLayer(
-                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                   userAgentPackageName: 'com.zervi.app',
-                 ),
-               ),
+              ColorFiltered(
+                colorFilter: Theme.of(context).brightness == Brightness.dark
+                    ? const ColorFilter.matrix([
+                        -0.213,
+                        -0.715,
+                        -0.072,
+                        0,
+                        255,
+                        -0.213,
+                        -0.715,
+                        -0.072,
+                        0,
+                        255,
+                        -0.213,
+                        -0.715,
+                        -0.072,
+                        0,
+                        255,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                      ])
+                    : const ColorFilter.matrix([
+                        0.33,
+                        0.33,
+                        0.33,
+                        0,
+                        0,
+                        0.33,
+                        0.33,
+                        0.33,
+                        0,
+                        0,
+                        0.33,
+                        0.33,
+                        0.33,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                      ]),
+                child: TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.zervi.app',
+                ),
+              ),
               RichAttributionWidget(
                 alignment: AttributionAlignment.bottomLeft,
                 attributions: [
                   TextSourceAttribution(
                     'OpenStreetMap contributors',
-                    onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+                    onTap: () => launchUrl(
+                      Uri.parse('https://openstreetmap.org/copyright'),
+                    ),
                   ),
                 ],
               ),
@@ -141,21 +178,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       .where((l) {
                         if (_filterQuery.isEmpty) return true;
                         final query = _filterQuery.toLowerCase();
-                        return l.title.toLowerCase().contains(query) || 
-                               (l.description?.toLowerCase().contains(query) ?? false);
+                        return l.title.toLowerCase().contains(query) ||
+                            (l.description.toLowerCase().contains(query));
                       })
                       .toList();
 
                   final markers = filteredListings
-                      .map((l) => Marker(
-                            point: LatLng(l.lat!, l.lng!),
-                            width: 28,
-                            height: 28,
-                            child: GestureDetector(
-                              onTap: () => context.push('/listing/${l.id}'),
-                              child: _buildMarker(l.type, l.category),
-                            ),
-                          ))
+                      .map(
+                        (l) => Marker(
+                          point: LatLng(l.lat!, l.lng!),
+                          width: 28,
+                          height: 28,
+                          child: GestureDetector(
+                            onTap: () => context.push('/listing/${l.id}'),
+                            child: _buildMarker(l.type, l.category),
+                          ),
+                        ),
+                      )
                       .toList();
 
                   return MarkerLayer(
@@ -178,9 +217,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.blueAccent,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
                                   boxShadow: [
-                                    BoxShadow(color: Colors.blueAccent.withValues(alpha: 0.5), blurRadius: 10)
+                                    BoxShadow(
+                                      color: Colors.blueAccent.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      blurRadius: 10,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -195,7 +242,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ],
           ),
-          
+
           // ─── Buscador y Sugerencias ─────────────────────────────────────────────
           Positioned(
             top: 16,
@@ -209,7 +256,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
                   ),
                   child: TextField(
@@ -220,25 +271,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: 'Buscar servicios o trabajos...',
-                      hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
+                      hintStyle: const TextStyle(
+                        color: Colors.black38,
+                        fontSize: 14,
+                      ),
                       border: InputBorder.none,
-                      icon: const Icon(Icons.search, size: 20, color: Colors.black54),
-                      suffixIcon: _searchController.text.isNotEmpty 
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _listingSuggestions = [];
-                                _filterQuery = '';
-                              });
-                            },
-                          )
-                        : null,
+                      icon: const Icon(
+                        Icons.search,
+                        size: 20,
+                        color: Colors.black54,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _listingSuggestions = [];
+                                  _filterQuery = '';
+                                });
+                              },
+                            )
+                          : null,
                     ),
                   ),
                 ),
-                
+
                 // Lista de sugerencias (solo servicios)
                 if (_listingSuggestions.isNotEmpty)
                   Container(
@@ -248,7 +306,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                        ),
                       ],
                     ),
                     child: ListView(
@@ -256,29 +317,54 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       padding: EdgeInsets.zero,
                       children: [
                         const Padding(
-                          padding: EdgeInsets.only(left: 16, top: 12, bottom: 4),
-                          child: Text('SERVICIOS ENCONTRADOS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black45, letterSpacing: 1)),
+                          padding: EdgeInsets.only(
+                            left: 16,
+                            top: 12,
+                            bottom: 4,
+                          ),
+                          child: Text(
+                            'SERVICIOS ENCONTRADOS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black45,
+                              letterSpacing: 1,
+                            ),
+                          ),
                         ),
-                        ..._listingSuggestions.map((l) => ListTile(
-                          leading: const Icon(Icons.search, size: 18),
-                          title: Text(l.title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: Text(l.description ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                          onTap: () {
-                            setState(() {
-                              _filterQuery = l.title;
-                              _searchController.text = l.title;
-                              _listingSuggestions = [];
-                            });
-                            _mapController.move(LatLng(l.lat!, l.lng!), 15.0);
-                            FocusScope.of(context).unfocus();
-                          },
-                        )),
+                        ..._listingSuggestions.map(
+                          (l) => ListTile(
+                            leading: const Icon(Icons.search, size: 18),
+                            title: Text(
+                              l.title,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              l.description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            onTap: () {
+                              setState(() {
+                                _filterQuery = l.title;
+                                _searchController.text = l.title;
+                                _listingSuggestions = [];
+                              });
+                              _mapController.move(LatLng(l.lat!, l.lng!), 15.0);
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
                 const SizedBox(height: 12),
-                
+
                 // Selector de Tipo (solo si no hay sugerencias abiertas)
                 if (_listingSuggestions.isEmpty)
                   Container(
@@ -287,7 +373,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                        ),
                       ],
                     ),
                     child: Row(
@@ -317,10 +406,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
 
     final listings = ref.read(listingsProvider(_selectedType)).value ?? [];
-    final matches = listings.where((l) => 
-      l.title.toLowerCase().contains(query.toLowerCase()) ||
-      (l.description?.toLowerCase().contains(query.toLowerCase()) ?? false)
-    ).take(5).toList();
+    final lowerQuery = query.toLowerCase();
+    final matches = listings
+        .where((l) {
+          final titleMatch = l.title.toLowerCase().contains(lowerQuery);
+          final descMatch =
+              (l.description?.toLowerCase().contains(lowerQuery) ?? false);
+          return titleMatch || descMatch;
+        })
+        .take(5)
+        .toList();
 
     setState(() => _listingSuggestions = matches);
   }
@@ -353,20 +448,31 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   IconData _getCategoryIcon(String? category) {
     switch (category) {
-      case 'Limpieza y Mantenimiento': return Icons.cleaning_services_rounded;
-      case 'Reformas y Construcción': return Icons.construction_rounded;
-      case 'Técnica y Reparaciones': return Icons.build_rounded;
-      case 'Fletes y Mudanzas': return Icons.local_shipping_rounded;
-      case 'Belleza y Bienestar': return Icons.content_cut_rounded;
-      case 'Clases Particulares': return Icons.school_rounded;
-      case 'Programación y Diseño': return Icons.code_rounded;
-      case 'Gastronomía': return Icons.restaurant_rounded;
-      default: return Icons.star_rounded;
+      case 'Limpieza y Mantenimiento':
+        return Icons.cleaning_services_rounded;
+      case 'Reformas y Construcción':
+        return Icons.construction_rounded;
+      case 'Técnica y Reparaciones':
+        return Icons.build_rounded;
+      case 'Fletes y Mudanzas':
+        return Icons.local_shipping_rounded;
+      case 'Belleza y Bienestar':
+        return Icons.content_cut_rounded;
+      case 'Clases Particulares':
+        return Icons.school_rounded;
+      case 'Programación y Diseño':
+        return Icons.code_rounded;
+      case 'Gastronomía':
+        return Icons.restaurant_rounded;
+      default:
+        return Icons.star_rounded;
     }
   }
 
   Widget _buildMarker(ListingType type, String? category) {
-    final color = type == ListingType.service ? const Color(0xFF3B82F6) : const Color(0xFFF59E0B);
+    final color = type == ListingType.service
+        ? const Color(0xFF3B82F6)
+        : const Color(0xFFF59E0B);
     return Container(
       decoration: BoxDecoration(
         color: color,
@@ -377,15 +483,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
-          )
+          ),
         ],
       ),
       child: Center(
-        child: Icon(
-          _getCategoryIcon(category),
-          color: Colors.white,
-          size: 12,
-        ),
+        child: Icon(_getCategoryIcon(category), color: Colors.white, size: 12),
       ),
     );
   }

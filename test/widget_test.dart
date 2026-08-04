@@ -8,5 +8,6 @@ void main() {
     await tester.pumpWidget(
       const ProviderScope(child: ZerviApp()),
     );
+    await tester.pumpAndSettle(const Duration(seconds: 3));
   });
 }

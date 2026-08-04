@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zenvi/core/shell/main_shell.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/auth/presentation/screens/auth_screen.dart';
+import 'package:zenvi/features/auth/presentation/screens/splash_screen.dart';
 import 'package:zenvi/features/home/presentation/screens/home_screen.dart';
 import 'package:zenvi/features/home/presentation/screens/listing_detail_screen.dart';
 import 'package:zenvi/features/home/presentation/screens/map_screen.dart';
@@ -37,7 +38,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _AuthNotifier(ref);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
       final isAuthenticated = ref.read(isAuthenticatedProvider);
@@ -59,6 +60,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ─── Splash (full-screen loading) ──────────────────────────────────────
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+
       // ─── Shell with persistent Bottom Nav ─────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),

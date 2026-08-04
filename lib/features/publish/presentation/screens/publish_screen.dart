@@ -62,17 +62,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   bool _isSearchingLocation = false;
   List<dynamic> _locationSuggestions = [];
 
-  static const List<String> _categories = [
-    'Limpieza y Mantenimiento',
-    'Reformas y Construcción',
-    'Técnica y Reparaciones',
-    'Fletes y Mudanzas',
-    'Belleza y Bienestar',
-    'Clases Particulares',
-    'Programación y Diseño',
-    'Gastronomía',
-    'Otros',
-  ];
+
 
   @override
   void initState() {
@@ -91,10 +81,6 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
       _lng = l.lng;
       if (l.images.isNotEmpty) {
         _existingImages = List.from(l.images);
-      }
-      // Assuming categories match the string
-      if (l.category != null && _categories.any((c) => c.toLowerCase() == l.category!.toLowerCase())) {
-        _selectedCategory = _categories.firstWhere((c) => c.toLowerCase() == l.category!.toLowerCase());
       }
     }
     
@@ -161,12 +147,17 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
 
   // ─── Paso 1: Título + Categoría ─────────────────────────────────────────────
   Widget _buildStep1() {
+    final categoriesAsync = ref.watch(categoriesProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildStepTitle(
-          'Ponele un nombre',
-          'Un buen título llama la atención. Sé claro y directo.',
+          _isService
+              ? '¿Qué servicio vas a ofrecer?'
+              : '¿Qué tipo de trabajo necesitás?',
+          'Escribí un título claro y seleccioná la categoría que mejor se adapte.',
         ),
         const SizedBox(height: 32),
         _buildTextField(
@@ -179,35 +170,67 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         ),
         const SizedBox(height: 40),
         _buildSectionLabel('Categoría'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _categories.map((cat) {
-            final isSelected = _selectedCategory == cat;
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-            return ChoiceChip(
-              label: Text(cat),
-              selected: isSelected,
-              onSelected: (selected) =>
-                  setState(() => _selectedCategory = selected ? cat : null),
-              selectedColor: isDark ? Colors.white : Colors.black,
-              labelStyle: TextStyle(
-                color: isSelected 
-                    ? (isDark ? Colors.black : Colors.white) 
-                    : (isDark ? Colors.white70 : Colors.black87),
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
-              side: isDark 
-                  ? BorderSide(color: isSelected ? Colors.transparent : Colors.white10) 
-                  : BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              showCheckmark: false,
+        categoriesAsync.when(
+          data: (categories) {
+            final categoryNames = categories.map((c) => c['name'] as String).toList();
+            
+            // Si estamos editando y _selectedCategory aún no se seteó, lo sincronizamos desde la lista de la DB
+            if (widget.listingToEdit != null && _selectedCategory == null && widget.listingToEdit!.category != null) {
+              final editCat = widget.listingToEdit!.category!;
+              if (categoryNames.any((c) => c.toLowerCase() == editCat.toLowerCase())) {
+                _selectedCategory = categoryNames.firstWhere((c) => c.toLowerCase() == editCat.toLowerCase());
+              }
+            }
+
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: categoryNames.map((cat) {
+                final isSelected = _selectedCategory == cat;
+                return ChoiceChip(
+                  label: Text(cat),
+                  selected: isSelected,
+                  onSelected: (selected) =>
+                      setState(() => _selectedCategory = selected ? cat : null),
+                  selectedColor: isDark ? Colors.white : Colors.black,
+                  labelStyle: TextStyle(
+                    color: isSelected 
+                        ? (isDark ? Colors.black : Colors.white) 
+                        : (isDark ? Colors.white70 : Colors.black87),
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                  side: isDark 
+                      ? BorderSide(color: isSelected ? Colors.transparent : Colors.white10) 
+                      : BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  showCheckmark: false,
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
+          loading: () => Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(
+              5,
+              (index) => Container(
+                width: 100,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F1F1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          error: (err, _) => Text(
+            'Error al cargar categorías',
+            style: TextStyle(color: Colors.red[400], fontSize: 12),
+          ),
         ),
       ],
     );

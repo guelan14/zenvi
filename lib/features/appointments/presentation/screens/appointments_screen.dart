@@ -258,8 +258,31 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (event.status == AppointmentStatus.accepted ||
+                              event.status == AppointmentStatus.completed) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'PAGADO',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      )
+                      ),
                     ],
                   ),
                 ),

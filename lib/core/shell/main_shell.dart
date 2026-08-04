@@ -25,7 +25,11 @@ class MainShell extends ConsumerWidget {
 
   const MainShell({super.key, required this.child});
 
-  List<_NavDestinationItem> _getDestinations(bool showMap, bool isAuthenticated, bool isDark) {
+  List<_NavDestinationItem> _getDestinations(
+    UserMode userMode,
+    bool isAuthenticated,
+    bool isDark,
+  ) {
     final selectedColor = isDark ? Colors.black : Colors.white;
     return [
       _NavDestinationItem(
@@ -34,14 +38,15 @@ class MainShell extends ConsumerWidget {
         selectedIcon: Icon(Icons.home_rounded, color: selectedColor),
         label: 'Inicio',
       ),
-      if (showMap)
-        _NavDestinationItem(
-          route: '/map',
-          icon: const Icon(Icons.map_outlined),
-          selectedIcon: Icon(Icons.map_rounded, color: selectedColor),
-          label: 'Mapa',
-        )
-      else
+      // El mapa se muestra en ambos modos
+      _NavDestinationItem(
+        route: '/map',
+        icon: const Icon(Icons.map_outlined),
+        selectedIcon: Icon(Icons.map_rounded, color: selectedColor),
+        label: 'Mapa',
+      ),
+      // Las métricas solo se muestran en el modo profesional
+      if (userMode == UserMode.professional)
         _NavDestinationItem(
           route: '/metrics',
           icon: const Icon(Icons.bar_chart_outlined),
@@ -81,8 +86,7 @@ class MainShell extends ConsumerWidget {
     final userMode = ref.watch(userModeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final showMap = userMode == UserMode.client;
-    final destinations = _getDestinations(showMap, isAuthenticated, isDark);
+    final destinations = _getDestinations(userMode, isAuthenticated, isDark);
 
     final location = GoRouterState.of(context).uri.toString();
     int selectedIndex = 0;
@@ -92,16 +96,20 @@ class MainShell extends ConsumerWidget {
         selectedIndex = i;
         break;
       }
-      
-      if (dest.route == '/messages' && (location.startsWith('/messages') || location.startsWith('/chat'))) {
+
+      if (dest.route == '/messages' &&
+          (location.startsWith('/messages') || location.startsWith('/chat'))) {
         selectedIndex = i;
         break;
       }
-      if (dest.route == '/agenda' && (location.startsWith('/agenda') || location.startsWith('/appointment'))) {
+      if (dest.route == '/agenda' &&
+          (location.startsWith('/agenda') ||
+              location.startsWith('/appointment'))) {
         selectedIndex = i;
         break;
       }
-      if (dest.route == '/profile/me' && (location.startsWith('/profile') || location.startsWith('/user'))) {
+      if (dest.route == '/profile/me' &&
+          (location.startsWith('/profile') || location.startsWith('/user'))) {
         selectedIndex = i;
         break;
       }
@@ -131,10 +139,18 @@ class MainShell extends ConsumerWidget {
               foregroundColor: isDark ? Colors.black : Colors.white,
               icon: const Icon(Icons.add, size: 20),
               label: Text(
-                userMode == UserMode.client ? 'Publicar Pedido' : 'Ofrecer Servicio',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
+                userMode == UserMode.client
+                    ? 'Publicar Pedido'
+                    : 'Ofrecer Servicio',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  letterSpacing: 0.2,
+                ),
               ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -142,7 +158,11 @@ class MainShell extends ConsumerWidget {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          border: Border(top: BorderSide(color: isDark ? const Color(0xFF1E222B) : const Color(0xFFEEEEEE))),
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF1E222B) : const Color(0xFFEEEEEE),
+            ),
+          ),
         ),
         child: SafeArea(
           top: false,
