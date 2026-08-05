@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -31,11 +33,58 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   bool _showMapOverlay = true;
   double _overlayOpacity = 1.0;
   bool _hasCenteredOnUser = false;
+  BitmapDescriptor? _serviceMarkerIcon;
+  BitmapDescriptor? _jobMarkerIcon;
 
   @override
   void initState() {
     super.initState();
+    _loadMarkerIcons();
     _requestPermission();
+  }
+
+  Future<void> _loadMarkerIcons() async {
+    final serviceIcon = await _createCustomMarker(const Color(0xFF2196F3), size: 40);
+    final jobIcon = await _createCustomMarker(const Color(0xFFFF9800), size: 40);
+    if (mounted) {
+      setState(() {
+        _serviceMarkerIcon = serviceIcon;
+        _jobMarkerIcon = jobIcon;
+      });
+    }
+  }
+
+  Future<BitmapDescriptor> _createCustomMarker(Color color, {required int size}) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    final double radius = size / 2.0;
+
+    // Sombra exterior
+    final Paint shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.2)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    canvas.drawCircle(Offset(radius, radius), radius, shadowPaint);
+
+    // Círculo principal coloreado
+    final Paint paint = Paint()..color = color;
+    canvas.drawCircle(Offset(radius, radius), radius - 2, paint);
+
+    // Borde blanco
+    final Paint borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawCircle(Offset(radius, radius), radius - 2, borderPaint);
+
+    // Punto blanco central
+    final Paint centerPaint = Paint()..color = Colors.white;
+    canvas.drawCircle(Offset(radius, radius), radius * 0.35, centerPaint);
+
+    final ui.Image image = await pictureRecorder.endRecording().toImage(size, size);
+    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final Uint8List list = byteData!.buffer.asUint8List();
+
+    return BitmapDescriptor.fromBytes(list);
   }
 
   Future<void> _requestPermission() async {
@@ -134,11 +183,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             markerId: MarkerId(l.id.toString()),
             position: LatLng(l.lat!, l.lng!),
             onTap: () => context.push('/listing/${l.id}'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              l.type == ListingType.service 
-                ? BitmapDescriptor.hueBlue 
-                : BitmapDescriptor.hueOrange,
-            ),
+            icon: l.type == ListingType.service
+                ? (_serviceMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue))
+                : (_jobMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
           ),
         )
         .toSet();
@@ -184,6 +231,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             myLocationButtonEnabled: false,
             mapToolbarEnabled: false,
             zoomControlsEnabled: false,
+            compassEnabled: false,
           ),
 
           // ─── Buscador Flotante Superior (Pill-style) ─────────────────────────
