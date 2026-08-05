@@ -36,12 +36,6 @@ class MessagesScreen extends ConsumerWidget {
         ),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
-        actions: const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: RoleSwitchButton(),
-          ),
-        ],
       ),
       body: conversationsAsync.when(
         loading: () => Center(

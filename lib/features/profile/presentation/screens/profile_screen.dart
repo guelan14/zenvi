@@ -49,16 +49,14 @@ class ProfileScreen extends ConsumerWidget {
                 pinned: true,
                 backgroundColor: Colors.black,
                 elevation: 0,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => context.pop(),
-                ),
+                leading: context.canPop()
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => context.pop(),
+                      )
+                    : null,
                 actions: [
                   if (isMe) ...[
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: RoleSwitchButton(),
-                    ),
                     IconButton(
                       icon: const Icon(
                         Icons.logout_rounded,

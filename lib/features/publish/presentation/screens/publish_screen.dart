@@ -1531,6 +1531,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
 
       if (mounted) {
         ref.invalidate(listingsProvider);
+        ref.invalidate(profileListingsProvider);
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

@@ -44,8 +44,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _loadMarkerIcons() async {
-    final serviceIcon = await _createCustomMarker(const Color(0xFF2196F3), size: 40);
-    final jobIcon = await _createCustomMarker(const Color(0xFFFF9800), size: 40);
+    final serviceIcon = await _createCustomMarker(const Color(0xFF2196F3), 'S', size: 34);
+    final jobIcon = await _createCustomMarker(const Color(0xFFFF9800), 'T', size: 34);
     if (mounted) {
       setState(() {
         _serviceMarkerIcon = serviceIcon;
@@ -54,33 +54,63 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  Future<BitmapDescriptor> _createCustomMarker(Color color, {required int size}) async {
+  Future<BitmapDescriptor> _createCustomMarker(Color color, String text, {required int size}) async {
     final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
     final Canvas canvas = Canvas(pictureRecorder);
-    final double radius = size / 2.0;
+    final double width = size.toDouble();
+    final double height = size.toDouble() * 1.25; // Altura extra para la punta inferior
+    final double circleHeight = width * 0.85;
 
-    // Sombra exterior
+    // 1. Contorno del Pin (Círculo + Punta Inferior)
+    final Path pinPath = Path();
+    pinPath.addOval(Rect.fromLTWH(0, 0, width, circleHeight));
+    pinPath.moveTo(width * 0.3, circleHeight * 0.85);
+    pinPath.lineTo(width * 0.5, height);
+    pinPath.lineTo(width * 0.7, circleHeight * 0.85);
+    pinPath.close();
+
+    // Sombra del Pin
     final Paint shadowPaint = Paint()
       ..color = Colors.black.withOpacity(0.2)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-    canvas.drawCircle(Offset(radius, radius), radius, shadowPaint);
+    canvas.drawPath(pinPath, shadowPaint);
 
-    // Círculo principal coloreado
+    // Cuerpo coloreado del Pin
     final Paint paint = Paint()..color = color;
-    canvas.drawCircle(Offset(radius, radius), radius - 2, paint);
+    canvas.drawPath(pinPath, paint);
 
-    // Borde blanco
+    // Borde Blanco
     final Paint borderPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
-    canvas.drawCircle(Offset(radius, radius), radius - 2, borderPaint);
+    canvas.drawPath(pinPath, borderPaint);
 
-    // Punto blanco central
-    final Paint centerPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(radius, radius), radius * 0.35, centerPaint);
+    // 2. Texto centrado (S o T)
+    final TextPainter textPainter = TextPainter(
+      textDirection: ui.TextDirection.ltr,
+    );
+    textPainter.text = TextSpan(
+      text: text,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: width * 0.45,
+        fontWeight: FontWeight.w900,
+        fontFamily: 'Roboto',
+      ),
+    );
+    textPainter.layout();
+    
+    // Centramos el texto en la porción circular
+    textPainter.paint(
+      canvas,
+      Offset(
+        (width - textPainter.width) / 2,
+        (circleHeight - textPainter.height) / 2,
+      ),
+    );
 
-    final ui.Image image = await pictureRecorder.endRecording().toImage(size, size);
+    final ui.Image image = await pictureRecorder.endRecording().toImage(width.toInt(), height.toInt());
     final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     final Uint8List list = byteData!.buffer.asUint8List();
 

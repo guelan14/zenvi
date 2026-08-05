@@ -18,16 +18,15 @@ class ListingDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final listingsAsync = ref.watch(listingsProvider(null));
+    final listingAsync = ref.watch(listingByIdProvider(listingId));
     final availabilityAsync = ref.watch(availabilityProvider(listingId));
     final currentUserId = ref.watch(currentUserProvider)?.id;
 
-    return listingsAsync.when(
-      data: (listings) {
-        final listing = listings.firstWhere(
-          (l) => l.id == listingId,
-          orElse: () => throw Exception('Servicio no encontrado'),
-        );
+    return listingAsync.when(
+      data: (listing) {
+        if (listing == null) {
+          return const Scaffold(body: Center(child: Text('Servicio no encontrado')));
+        }
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final authorProfileAsync = ref.watch(profileProvider(listing.authorId));

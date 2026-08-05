@@ -192,7 +192,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return listingsAsync.when(
       data: (listings) {
         final filteredListings = listings.where((l) {
-          if (l.authorId == currentUserId) return false;
           if (_activeCategory != null) return l.category == _activeCategory;
           if (_searchQuery.isEmpty) return true;
           final q = _searchQuery.toLowerCase();

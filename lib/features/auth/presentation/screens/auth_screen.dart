@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -111,6 +112,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         message = 'La contraseña es muy corta (mínimo 6 caracteres).';
       }
       _showError(message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+      if (webClientId == null || webClientId.isEmpty) {
+        throw Exception('GOOGLE_WEB_CLIENT_ID no configurado en el archivo .env');
+      }
+
+      await ref.read(authRepositoryProvider).signInWithGoogle(webClientId: webClientId);
+
+      if (mounted) {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          final destination = widget.redirectTo ?? '/profile/me';
+          context.go(destination);
+        }
+      }
+    } catch (e) {
+      String errorMsg = e.toString().replaceAll('Exception: ', '');
+      if (errorMsg.contains('cancelado') || errorMsg.contains('Cancelado')) return;
+      _showError(errorMsg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -238,6 +266,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         ),
                         const SizedBox(height: 32),
                         _buildSubmitButton(),
+                        const SizedBox(height: 20),
+                        _buildDivider(isDark),
+                        const SizedBox(height: 20),
+                        _buildGoogleButton(isDark),
                         const SizedBox(height: 24),
                         Center(
                           child: GestureDetector(
@@ -407,6 +439,59 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 _isLogin ? 'Ingresar' : 'Crear cuenta',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+      ),
+    );
+  }
+
+  Widget _buildDivider(bool isDark) {
+    final color = isDark ? Colors.white24 : Colors.black12;
+    return Row(
+      children: [
+        Expanded(child: Divider(color: color, thickness: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'o ingresar con',
+            style: TextStyle(
+              color: isDark ? Colors.white38 : Colors.black38,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: color, thickness: 1)),
+      ],
+    );
+  }
+
+  Widget _buildGoogleButton(bool isDark) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: _isLoading ? null : _handleGoogleSignIn,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: isDark ? Colors.white24 : Colors.black12, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: Colors.transparent,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.network(
+              'https://developers.google.com/static/identity/images/g-logo.png',
+              height: 22,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Continuar con Google',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
