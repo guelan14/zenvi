@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
-import 'package:zenvi/shared/widgets/role_switch_button.dart';
+import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
+import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
+import 'package:zenvi/features/appointments/domain/models/appointment.dart';
+import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 
 class MetricsScreen extends ConsumerWidget {
   const MetricsScreen({super.key});
@@ -9,203 +13,261 @@ class MetricsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final currentUser = ref.watch(currentUserProvider);
+    if (currentUser == null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: Text('Iniciá sesión para ver tus métricas')),
+      );
+    }
+
+    final appointmentsAsync = ref.watch(userAppointmentsProvider);
+    final listingsAsync = ref.watch(profileListingsProvider(currentUser.id));
+    final profileAsync = ref.watch(profileProvider(currentUser.id));
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
-          'Métricas',
+          'Métricas de Rendimiento',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ─── Resumen General ───────────────────────────────────────────────
-            Text(
-              'Rendimiento General',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildMetricCard(
-                  context,
-                  title: 'Ingresos Totales',
-                  value: '\$145,200',
-                  change: '+12.5%',
-                  isPositive: true,
-                  icon: Icons.attach_money_rounded,
-                  color: Colors.green,
-                ),
-                _buildMetricCard(
-                  context,
-                  title: 'Trabajos Realizados',
-                  value: '38',
-                  change: '+8%',
-                  isPositive: true,
-                  icon: Icons.construction_rounded,
-                  color: Colors.blue,
-                ),
-                _buildMetricCard(
-                  context,
-                  title: 'Visualizaciones',
-                  value: '1,240',
-                  change: '-2.4%',
-                  isPositive: false,
-                  icon: Icons.remove_red_eye_outlined,
-                  color: Colors.purple,
-                ),
-                _buildMetricCard(
-                  context,
-                  title: 'Calificación',
-                  value: '4.9 ★',
-                  change: '+0.1',
-                  isPositive: true,
-                  icon: Icons.star_border_rounded,
-                  color: Colors.orange,
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
+      body: appointmentsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(child: Text('Error al cargar métricas: $err')),
+        data: (appointments) {
+          final myAppts = appointments.where((a) => a.professionalId == currentUser.id).toList();
+          final myCompletedAppts = myAppts.where((a) => a.status == AppointmentStatus.completed).toList();
+          
+          final totalEarnings = myCompletedAppts.fold<double>(0.0, (sum, a) => sum + (a.price ?? 0.0));
+          final completedCount = myCompletedAppts.length;
+          final pendingCount = myAppts.where((a) => a.status == AppointmentStatus.pending || a.status == AppointmentStatus.accepted).length;
+          
+          final rating = profileAsync.value?.ratingAvgPro ?? 5.0;
 
-            // ─── Gráfico de Ingresos Semanales ──────────────────────────────────
-            Text(
-              'Ingresos de la Semana',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ZerviCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Ingresos por día de la semana actual
+          final now = DateTime.now();
+          final monday = now.subtract(Duration(days: now.weekday - 1));
+          final startOfWeek = DateTime(monday.year, monday.month, monday.day);
+          
+          final weeklyEarnings = List.generate(7, (index) {
+            final dayDate = startOfWeek.add(Duration(days: index));
+            final dayAppts = myCompletedAppts.where((a) => 
+              a.scheduledAt.year == dayDate.year &&
+              a.scheduledAt.month == dayDate.month &&
+              a.scheduledAt.day == dayDate.day
+            ).toList();
+            
+            return dayAppts.fold<double>(0.0, (sum, a) => sum + (a.price ?? 0.0));
+          });
+          
+          final double maxEarning = weeklyEarnings.fold(0.0, (max, val) => val > max ? val : max);
+          final totalWeeklyEarnings = weeklyEarnings.fold<double>(0.0, (sum, val) => sum + val);
+
+          // Calcular servicios más solicitados
+          final myListings = listingsAsync.value ?? [];
+          final Map<String, int> listingCounts = {};
+          final Map<String, double> listingRevenues = {};
+          
+          for (var l in myListings) {
+            listingCounts[l.id] = 0;
+            listingRevenues[l.id] = 0.0;
+          }
+          
+          for (var a in myCompletedAppts) {
+            listingCounts[a.listingId] = (listingCounts[a.listingId] ?? 0) + 1;
+            listingRevenues[a.listingId] = (listingRevenues[a.listingId] ?? 0.0) + (a.price ?? 0.0);
+          }
+          
+          final serviceStats = myListings.map((l) {
+            return {
+              'name': l.title,
+              'count': listingCounts[l.id] ?? 0,
+              'revenue': listingRevenues[l.id] ?? 0.0,
+            };
+          }).toList();
+          
+          serviceStats.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+
+          final formatter = NumberFormat.simpleCurrency(decimalDigits: 0, locale: 'es_AR');
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Resumen Profesional',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.4,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildMetricCard(
+                      context,
+                      title: 'Ingresos Totales',
+                      value: formatter.format(totalEarnings),
+                      change: 'Total facturado',
+                      isPositive: true,
+                      icon: Icons.attach_money_rounded,
+                      color: Colors.green,
+                    ),
+                    _buildMetricCard(
+                      context,
+                      title: 'Trabajos Realizados',
+                      value: completedCount.toString(),
+                      change: 'Turnos completados',
+                      isPositive: true,
+                      icon: Icons.construction_rounded,
+                      color: Colors.blue,
+                    ),
+                    _buildMetricCard(
+                      context,
+                      title: 'Turnos Pendientes',
+                      value: pendingCount.toString(),
+                      change: 'Próximas citas',
+                      isPositive: true,
+                      icon: Icons.schedule_rounded,
+                      color: Colors.orange,
+                    ),
+                    _buildMetricCard(
+                      context,
+                      title: 'Calificación',
+                      value: '${rating.toStringAsFixed(1)} ★',
+                      change: 'Opinión de clientes',
+                      isPositive: true,
+                      icon: Icons.star_rounded,
+                      color: Colors.purple,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+
+                // ─── Gráfico de Ingresos Semanales ──────────────────────────────────
+                Text(
+                  'Ingresos de la Semana',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ZerviCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Esta semana',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.white54 : Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '\$24,500',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Esta semana (acumulado)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white54 : Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                formatter.format(totalWeeklyEarnings),
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        height: 130,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Icon(Icons.arrow_upward_rounded, size: 14, color: Colors.green),
-                            SizedBox(width: 4),
-                            Text(
-                              '+15%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
+                            _buildBar(context, day: 'Lun', heightPercent: maxEarning > 0 ? weeklyEarnings[0] / maxEarning : 0.0, active: now.weekday == 1),
+                            _buildBar(context, day: 'Mar', heightPercent: maxEarning > 0 ? weeklyEarnings[1] / maxEarning : 0.0, active: now.weekday == 2),
+                            _buildBar(context, day: 'Mié', heightPercent: maxEarning > 0 ? weeklyEarnings[2] / maxEarning : 0.0, active: now.weekday == 3),
+                            _buildBar(context, day: 'Jue', heightPercent: maxEarning > 0 ? weeklyEarnings[3] / maxEarning : 0.0, active: now.weekday == 4),
+                            _buildBar(context, day: 'Vie', heightPercent: maxEarning > 0 ? weeklyEarnings[4] / maxEarning : 0.0, active: now.weekday == 5),
+                            _buildBar(context, day: 'Sáb', heightPercent: maxEarning > 0 ? weeklyEarnings[5] / maxEarning : 0.0, active: now.weekday == 6),
+                            _buildBar(context, day: 'Dom', heightPercent: maxEarning > 0 ? weeklyEarnings[6] / maxEarning : 0.0, active: now.weekday == 7),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  // Gráfico de Barras Custom
-                  SizedBox(
-                    height: 130,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _buildBar(context, day: 'Lun', heightPercent: 0.3, active: false),
-                        _buildBar(context, day: 'Mar', heightPercent: 0.5, active: false),
-                        _buildBar(context, day: 'Mié', heightPercent: 0.8, active: true),
-                        _buildBar(context, day: 'Jue', heightPercent: 0.4, active: false),
-                        _buildBar(context, day: 'Vie', heightPercent: 0.6, active: false),
-                        _buildBar(context, day: 'Sáb', heightPercent: 0.9, active: false),
-                        _buildBar(context, day: 'Dom', heightPercent: 0.2, active: false),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
+                ),
+                const SizedBox(height: 28),
 
-            // ─── Servicios Más Solicitados ──────────────────────────────────────
-            Text(
-              'Servicios Destacados',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
+                // ─── Servicios Más Solicitados ──────────────────────────────────────
+                Text(
+                  'Servicios Destacados',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ZerviCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: serviceStats.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'Aún no tenés servicios creados.',
+                              style: TextStyle(color: isDark ? Colors.white30 : Colors.black38),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          children: serviceStats.take(5).map((stat) {
+                            final idx = serviceStats.indexOf(stat);
+                            return Column(
+                              children: [
+                                _buildPopularServiceItem(
+                                  context,
+                                  name: stat['name'] as String,
+                                  requests: stat['count'] as int,
+                                  revenue: formatter.format(stat['revenue']),
+                                ),
+                                if (idx < serviceStats.take(5).length - 1)
+                                  const Divider(height: 1),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
-            const SizedBox(height: 16),
-            ZerviCard(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Column(
-                children: [
-                  _buildPopularServiceItem(
-                    context,
-                    name: 'Instalación Termotanque',
-                    requests: 18,
-                    revenue: '\$45,000',
-                  ),
-                  const Divider(height: 1),
-                  _buildPopularServiceItem(
-                    context,
-                    name: 'Destape Pluvial',
-                    requests: 12,
-                    revenue: '\$36,000',
-                  ),
-                  const Divider(height: 1),
-                  _buildPopularServiceItem(
-                    context,
-                    name: 'Reparación de Cañería',
-                    requests: 8,
-                    revenue: '\$24,000',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -241,9 +303,9 @@ class MetricsScreen extends ConsumerWidget {
               Text(
                 change,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: isPositive ? Colors.green : Colors.red,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white30 : Colors.black38,
                 ),
               ),
             ],
@@ -254,7 +316,7 @@ class MetricsScreen extends ConsumerWidget {
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.w900,
                   color: isDark ? Colors.white : Colors.black87,
                 ),
@@ -293,7 +355,7 @@ class MetricsScreen extends ConsumerWidget {
       children: [
         Container(
           width: 24,
-          height: 100 * heightPercent,
+          height: 100 * (heightPercent > 0.05 ? heightPercent : 0.05), // Asegura altura mínima para ver la barra
           decoration: BoxDecoration(
             color: barColor,
             borderRadius: BorderRadius.circular(6),
@@ -340,7 +402,7 @@ class MetricsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$requests contrataciones',
+                  '$requests contrataciones completadas',
                   style: TextStyle(
                     fontSize: 12,
                     color: isDark ? Colors.white54 : Colors.black54,

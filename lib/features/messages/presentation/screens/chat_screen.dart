@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -25,23 +26,54 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
-    if (targetUserId == null) {
-      return const Scaffold(body: Center(child: Text('Error: No target user specified')));
+    final currentUser = ref.watch(currentUserProvider);
+
+    final initialListing = widget.listing;
+    final hasRealListing = initialListing != null && initialListing.authorId.isNotEmpty;
+
+    Listing? activeListing = hasRealListing ? initialListing : null;
+    if (!hasRealListing && initialListing != null) {
+      final listingAsync = ref.watch(listingByIdProvider(initialListing.id));
+      activeListing = listingAsync.value;
     }
 
-    final currentUser = ref.watch(currentUserProvider);
-    final conversationAsync = ref.watch(currentConversationProvider(targetUserId));
-    final profileAsync = ref.watch(profileProvider(targetUserId));
+    final tempTargetUserId = activeListing?.authorId.isNotEmpty == true 
+        ? activeListing!.authorId 
+        : widget.otherUserId;
 
+    final conversationAsync = ref.watch(currentConversationProvider(tempTargetUserId ?? ''));
     final conversation = conversationAsync.value;
-    Listing? activeListing = widget.listing;
+
     if (activeListing == null && conversation != null && conversation.serviceRequestId != null) {
       final listingAsync = ref.watch(listingByIdProvider(conversation.serviceRequestId!));
       activeListing = listingAsync.value;
     }
 
+    final targetUserId = activeListing?.authorId.isNotEmpty == true 
+        ? activeListing!.authorId 
+        : widget.otherUserId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+      );
+    }
+
+    final profileAsync = ref.watch(profileProvider(targetUserId));
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final userMode = ref.watch(userModeProvider);
+    final isProvider = userMode == UserMode.professional ||
+        (activeListing != null &&
+            (activeListing.type == ListingType.service
+                ? activeListing.authorId == currentUser?.id
+                : activeListing.authorId != currentUser?.id));
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -104,6 +136,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         actions: [
           IconButton(
+            icon: Icon(
+              Icons.calendar_month_rounded,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            tooltip: isProvider ? 'Proponer Turno' : 'Solicitar Turno',
+            onPressed: () => _showRequestAppointment(context, ref, activeListing),
+          ),
+          IconButton(
             onPressed: () {},
             icon: Icon(Icons.more_vert, color: isDark ? Colors.white : Colors.black),
           ),
@@ -112,7 +152,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           // ─── Banner de Turno ───────────────────────────────────────────────
-          if (activeListing != null) _buildAppointmentBanner(activeListing),
+          if (activeListing != null) _buildAppointmentBanner(activeListing, isProvider),
 
           Expanded(
             child: conversationAsync.when(
@@ -150,13 +190,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
 
           // ─── Input ─────────────────────────────────────────────────────────
-          _buildInput(conversationAsync.value?.id, currentUser?.id),
+          _buildInput(
+            conversationAsync.value?.id,
+            currentUser?.id,
+            isProvider,
+            activeListing,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAppointmentBanner(Listing listing) {
+  Widget _buildAppointmentBanner(Listing listing, bool isProvider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
@@ -181,7 +226,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '¿Querés agendar un turno?',
+                  isProvider ? '¿Querés proponer un turno?' : '¿Querés solicitar un turno?',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
@@ -189,7 +234,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
                 Text(
-                  'Consultá los horarios disponibles.',
+                  isProvider 
+                      ? 'Enviá una propuesta de agenda y presupuesto al cliente.'
+                      : 'Enviá una solicitud de agenda y presupuesto al profesional.',
                   style: TextStyle(
                     fontSize: 11,
                     color: isDark ? Colors.white54 : Colors.black54,
@@ -207,7 +254,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('Solicitar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            child: Text(
+              isProvider ? 'Proponer' : 'Solicitar',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -380,7 +430,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInput(String? conversationId, String? currentUserId) {
+  Widget _buildInput(String? conversationId, String? currentUserId, bool isProvider, Listing? activeListing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
@@ -390,6 +440,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       child: Row(
         children: [
+          if (isProvider) ...[
+            IconButton(
+              onPressed: () => _showRequestAppointment(context, ref, activeListing),
+              icon: Icon(
+                Icons.calendar_month_rounded,
+                color: isDark ? Colors.white70 : Colors.black87,
+                size: 24,
+              ),
+              tooltip: 'Proponer Turno',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -445,12 +509,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       await ref.read(chatRepositoryProvider).sendMessage(conversationId, currentUserId, text);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al enviar mensaje: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref, Listing listing) async {
+  Future<void> _showRequestAppointment(BuildContext context, WidgetRef ref, Listing? listing) async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -459,9 +526,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
+    final userMode = ref.read(userModeProvider);
+    final isProvider = userMode == UserMode.professional ||
+        (listing != null &&
+            (listing.type == ListingType.service
+                ? listing.authorId == user.id
+                : listing.authorId != user.id));
+
+    final targetUserId = listing?.authorId.isNotEmpty == true 
+        ? listing!.authorId 
+        : widget.otherUserId;
+
+    if (targetUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: No se pudo determinar el contacto')),
+      );
+      return;
+    }
+
+    final professionalId = isProvider ? user.id : targetUserId;
+
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
     final notesController = TextEditingController();
+    final priceController = TextEditingController(
+      text: listing?.price != null ? listing!.price!.toStringAsFixed(0) : '',
+    );
+
+    String? selectedListingId = listing?.id;
+    bool isLoadingListings = false;
+    List<Listing> localListings = [];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -471,6 +565,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
+
+            if (listing == null && localListings.isEmpty && !isLoadingListings) {
+              isLoadingListings = true;
+              Future.microtask(() async {
+                try {
+                  final res = await ref.read(profileListingsProvider(professionalId).future);
+                  setState(() {
+                    localListings = res;
+                    isLoadingListings = false;
+                    if (localListings.isNotEmpty) {
+                      selectedListingId = localListings.first.id;
+                      if (localListings.first.price != null) {
+                        priceController.text = localListings.first.price!.toStringAsFixed(0);
+                      }
+                    }
+                  });
+                } catch (e) {
+                  setState(() => isLoadingListings = false);
+                }
+              });
+            }
+
             return Container(
               padding: EdgeInsets.only(
                 left: 24,
@@ -501,7 +617,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Solicitar Turno',
+                    isProvider ? 'Proponer Turno' : 'Solicitar Turno',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -510,23 +626,85 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Elegí la fecha y hora para el servicio.',
+                    isProvider 
+                        ? 'Establecé la fecha, hora y presupuesto para el cliente.'
+                        : 'Establecé la fecha, hora y presupuesto para el profesional.',
                     style: TextStyle(
                       fontSize: 13,
                       color: isDark ? Colors.white54 : Colors.black54,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Botón de fecha
+
+                  if (listing == null) ...[
+                    Text(
+                      'Servicio / Publicación',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (isLoadingListings)
+                      const Center(child: CircularProgressIndicator())
+                    else if (localListings.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          isProvider
+                              ? 'No tenés publicaciones activas creadas.'
+                              : 'El profesional no tiene publicaciones activas.',
+                          style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        value: selectedListingId,
+                        dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        items: localListings.map((l) {
+                          return DropdownMenuItem<String>(
+                            value: l.id,
+                            child: Text(
+                              l.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedListingId = val;
+                            final selectedList = localListings.firstWhere((l) => l.id == val);
+                            if (selectedList.price != null) {
+                              priceController.text = selectedList.price!.toStringAsFixed(0);
+                            }
+                          });
+                        },
+                      ),
+                    const SizedBox(height: 20),
+                  ],
+
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final date = await showDatePicker(
+                            final date = await _showCustomDatePicker(
                               context: context,
-                              initialDate: DateTime.now().add(const Duration(days: 1)),
+                              initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 1)),
                               firstDate: DateTime.now(),
                               lastDate: DateTime.now().add(const Duration(days: 30)),
                             );
@@ -541,7 +719,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                           label: Text(
                             selectedDate == null
-                                ? 'Seleccionar Fecha'
+                                ? 'Fecha'
                                 : DateFormat('dd/MM/yyyy').format(selectedDate!),
                             style: TextStyle(
                               color: isDark ? Colors.white : Colors.black87,
@@ -560,13 +738,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Botón de hora
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final time = await showTimePicker(
+                            final time = await _showCustomTimePicker(
                               context: context,
-                              initialTime: const TimeOfDay(hour: 9, minute: 0),
+                              initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
                             );
                             if (time != null) {
                               setState(() => selectedTime = time);
@@ -579,7 +756,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                           label: Text(
                             selectedTime == null
-                                ? 'Seleccionar Hora'
+                                ? 'Hora'
                                 : selectedTime!.format(context),
                             style: TextStyle(
                               color: isDark ? Colors.white : Colors.black87,
@@ -599,9 +776,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
+                  Text(
+                    isProvider ? 'Presupuesto propuesto (\$)' : 'Presupuesto acordado / ofrecido (\$)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Ej: 15000',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white30 : Colors.black38,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   
-                  // Campo de notas
                   Text(
                     'Notas o indicaciones especiales',
                     style: TextStyle(
@@ -615,7 +824,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     controller: notesController,
                     maxLines: 3,
                     decoration: InputDecoration(
-                      hintText: 'Detallá tu necesidad o indicaciones para llegar...',
+                      hintText: 'Detallá indicaciones o aclaraciones para la cita...',
                       hintStyle: TextStyle(
                         fontSize: 13,
                         color: isDark ? Colors.white30 : Colors.black38,
@@ -635,12 +844,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   const SizedBox(height: 28),
                   
-                  // Botón confirmar
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: (selectedDate == null || selectedTime == null)
+                      onPressed: (selectedDate == null || selectedTime == null || selectedListingId == null)
                           ? null
                           : () async {
                               final start = DateTime(
@@ -651,12 +859,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 selectedTime!.minute,
                               );
 
+                              final finalPrice = double.tryParse(priceController.text.trim()) ?? 0.0;
+
                               final appointment = Appointment(
                                 id: const Uuid().v4(),
-                                listingId: listing.id,
-                                customerId: user.id,
-                                professionalId: listing.authorId,
+                                listingId: selectedListingId!,
+                                customerId: isProvider ? targetUserId : user.id,
+                                professionalId: professionalId,
                                 scheduledAt: start,
+                                price: finalPrice > 0 ? finalPrice : null,
+                                status: AppointmentStatus.pending,
+                                createdByProvider: isProvider,
                                 notes: notesController.text.trim().isNotEmpty
                                     ? notesController.text.trim()
                                     : null,
@@ -670,30 +883,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
                                 final dateStr = DateFormat('dd/MM/yyyy').format(start);
                                 final timeStr = DateFormat('HH:mm').format(start);
-                                final messageContent =
-                                    '📅 Solicitó un turno para el día $dateStr a las $timeStr hs. (ID: ${appointment.id})';
+                                final priceStr = finalPrice > 0 ? ' por \$${finalPrice.toStringAsFixed(0)}' : '';
+                                
+                                final messageContent = isProvider
+                                    ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
+                                    : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
 
-                                final targetUserId = widget.listing?.authorId ?? widget.otherUserId;
-                                if (targetUserId != null) {
-                                  final conversation = ref
-                                      .read(currentConversationProvider(targetUserId))
-                                      .value;
-                                  if (conversation != null) {
-                                    await ref
-                                        .read(chatRepositoryProvider)
-                                        .sendMessage(
-                                          conversation.id,
-                                          user.id,
-                                          messageContent,
-                                        );
-                                  }
+                                final conversation = ref
+                                    .read(currentConversationProvider(targetUserId))
+                                    .value;
+                                if (conversation != null) {
+                                  await ref
+                                      .read(chatRepositoryProvider)
+                                      .sendMessage(
+                                        conversation.id,
+                                        user.id,
+                                        messageContent,
+                                      );
                                 }
 
                                 if (context.mounted) {
                                   Navigator.of(context).pop();
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Turno solicitado con éxito'),
+                                    SnackBar(
+                                      content: Text(isProvider
+                                          ? 'Propuesta de turno enviada con éxito'
+                                          : 'Turno solicitado con éxito'),
                                       backgroundColor: Colors.green,
                                     ),
                                   );
@@ -716,9 +931,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Solicitar Turno',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      child: Text(
+                        isProvider ? 'Enviar Propuesta' : 'Enviar Solicitud',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -726,6 +941,182 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _showCustomDatePicker({
+    required BuildContext context,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    DateTime tempDate = initialDate;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          height: 300,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.black54,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Seleccionar Fecha',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(tempDate),
+                      child: const Text(
+                        'Confirmar',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: CupertinoTheme(
+                  data: CupertinoThemeData(
+                    brightness: isDark ? Brightness.dark : Brightness.light,
+                    textTheme: CupertinoTextThemeData(
+                      dateTimePickerTextStyle: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.date,
+                    initialDateTime: tempDate,
+                    minimumDate: firstDate,
+                    maximumDate: lastDate,
+                    onDateTimeChanged: (DateTime newDate) {
+                      tempDate = newDate;
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<TimeOfDay?> _showCustomTimePicker({
+    required BuildContext context,
+    required TimeOfDay initialTime,
+  }) async {
+    TimeOfDay tempTime = initialTime;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return showModalBottomSheet<TimeOfDay>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          height: 300,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.black54,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Seleccionar Hora',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(tempTime),
+                      child: const Text(
+                        'Confirmar',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: CupertinoTheme(
+                  data: CupertinoThemeData(
+                    brightness: isDark ? Brightness.dark : Brightness.light,
+                    textTheme: CupertinoTextThemeData(
+                      dateTimePickerTextStyle: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.time,
+                    initialDateTime: DateTime(2020, 1, 1, tempTime.hour, tempTime.minute),
+                    onDateTimeChanged: (DateTime newDate) {
+                      tempTime = TimeOfDay(hour: newDate.hour, minute: newDate.minute);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

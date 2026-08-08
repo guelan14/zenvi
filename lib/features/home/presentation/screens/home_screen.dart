@@ -340,12 +340,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           : (profile?.ratingAvgClient ?? 0.0);
                       return Row(
                         children: [
-                          Text(
-                            profile?.fullName ?? "Usuario",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white70 : Colors.black87,
+                          Flexible(
+                            child: Text(
+                              profile?.fullName ?? "Usuario",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (rating > 0) ...[
@@ -377,10 +381,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (listing.price != null)
               Text(
                 '\$${listing.price!.toInt()}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Color(0xFF10B981),
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
           ],
@@ -446,16 +450,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: isDark ? Colors.white38 : Colors.black38,
             ),
             const SizedBox(width: 4),
-            Text(
-              listing.city ?? listing.location ?? 'Sin ubicación',
-              style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black38,
-                fontSize: 11,
+            Expanded(
+              child: Text(
+                listing.city ?? listing.location ?? 'Sin ubicación',
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.black38,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
-            if (listing.acceptsEmergencies)
+            if (listing.acceptsEmergencies) ...[
+              const SizedBox(width: 8),
               const Icon(Icons.flash_on, size: 12, color: Colors.red),
+            ],
           ],
         ),
       ],

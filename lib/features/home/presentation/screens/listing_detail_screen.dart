@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:zenvi/core/theme/map_styles.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
@@ -185,31 +185,48 @@ class ListingDetailScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     if (listing.city != null)
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
-                          const SizedBox(width: 4),
-                          Text(
-                            listing.city!,
-                            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                listing.city!,
+                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       )
                     else if (listing.location != null)
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
-                          const SizedBox(width: 4),
-                          Text(
-                            listing.location!,
-                            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14),
-                          ),
-                        ],
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: 16, color: isDark ? Colors.white54 : Colors.black54),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                listing.location!,
+                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    const SizedBox(width: 16),
                     if (listing.price != null)
                       Text(
                         '\$${listing.price!.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.green),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
                       ),
                   ],
                 ),
@@ -280,17 +297,34 @@ class ListingDetailScreen extends ConsumerWidget {
                   ),
                 ],
 
-                // ─── Disponibilidad ──────────────────────────────────────────────
+                // ─── Coordinación Horaria ─────────────────────────────────────────
                 if (listing.type == ListingType.service) ...[
                   const SizedBox(height: 32),
-                  const Text('Disponibilidad', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Coordinación', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  availabilityAsync.when(
-                    data: (slots) => slots.isNotEmpty
-                        ? WeeklyAvailabilityGrid(slots: slots)
-                        : Text('Consultar disponibilidad por chat.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 14)),
-                    loading: () => const ZerviSkeleton.rectangular(width: double.infinity, height: 60, borderRadius: 12),
-                    error: (err, _) => const Text('Error al cargar disponibilidad'),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.chat_bubble_outline_rounded, color: isDark ? Colors.white70 : Colors.black87, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'La agenda y el presupuesto final se coordinan de manera directa y personalizada por chat.',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
 
@@ -307,52 +341,33 @@ class ListingDetailScreen extends ConsumerWidget {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: FlutterMap(
-                        options: MapOptions(
-                          initialCenter: LatLng(listing.lat!, listing.lng!),
-                          initialZoom: 15.0,
-                          interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(listing.lat!, listing.lng!),
+                          zoom: 15.0,
                         ),
-                        children: [
-                          ColorFiltered(
-                            colorFilter: Theme.of(context).brightness == Brightness.dark
-                                ? const ColorFilter.matrix([
-                                    -0.213, -0.715, -0.072, 0, 255,
-                                    -0.213, -0.715, -0.072, 0, 255,
-                                    -0.213, -0.715, -0.072, 0, 255,
-                                    0,      0,      0,      1, 0,
-                                  ])
-                                : const ColorFilter.matrix([
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0.33, 0.33, 0.33, 0, 0,
-                                    0, 0, 0, 1, 0,
-                                  ]),
-                            child: TileLayer(
-                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.zervi.app',
+                        zoomControlsEnabled: false,
+                        myLocationButtonEnabled: false,
+                        compassEnabled: false,
+                        mapToolbarEnabled: false,
+                        scrollGesturesEnabled: false,
+                        zoomGesturesEnabled: false,
+                        tiltGesturesEnabled: false,
+                        rotateGesturesEnabled: false,
+                        onMapCreated: (controller) {
+                          controller.setMapStyle(isDark ? googleMapDarkStyle : googleMapLightStyle);
+                        },
+                        markers: {
+                          Marker(
+                            markerId: MarkerId(listing.id),
+                            position: LatLng(listing.lat!, listing.lng!),
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                              listing.type == ListingType.service
+                                  ? BitmapDescriptor.hueBlue
+                                  : BitmapDescriptor.hueOrange,
                             ),
                           ),
-                          RichAttributionWidget(
-                            alignment: AttributionAlignment.bottomLeft,
-                            attributions: [
-                              TextSourceAttribution(
-                                'OpenStreetMap contributors',
-                                onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
-                              ),
-                            ],
-                          ),
-                          MarkerLayer(
-                            markers: [
-                              Marker(
-                                point: LatLng(listing.lat!, listing.lng!),
-                                width: 40,
-                                height: 40,
-                                child: const Icon(Icons.location_on, color: Colors.black, size: 30),
-                              ),
-                            ],
-                          ),
-                        ],
+                        },
                       ),
                     ),
                   ),

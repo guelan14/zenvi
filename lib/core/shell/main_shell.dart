@@ -45,14 +45,7 @@ class MainShell extends ConsumerWidget {
         selectedIcon: Icon(Icons.map_rounded, color: selectedColor),
         label: 'Mapa',
       ),
-      // Las métricas solo se muestran en el modo profesional
-      if (userMode == UserMode.professional)
-        _NavDestinationItem(
-          route: '/metrics',
-          icon: const Icon(Icons.bar_chart_outlined),
-          selectedIcon: Icon(Icons.bar_chart_rounded, color: selectedColor),
-          label: 'Métricas',
-        ),
+
       _NavDestinationItem(
         route: '/agenda',
         icon: const Icon(Icons.calendar_month_outlined),
@@ -113,10 +106,7 @@ class MainShell extends ConsumerWidget {
         selectedIndex = i;
         break;
       }
-      if (dest.route == '/metrics' && location.startsWith('/metrics')) {
-        selectedIndex = i;
-        break;
-      }
+
       if (dest.route == '/map' && location.startsWith('/map')) {
         selectedIndex = i;
         break;

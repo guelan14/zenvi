@@ -185,18 +185,22 @@ class ProfileScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildStat(
-                        '⭐',
+                        Icons.star_rounded,
                         ratingToShow.toStringAsFixed(1),
                         'Rating',
                       ),
                       _buildStatDivider(),
                       _buildStat(
-                        '💼',
+                        Icons.work_rounded,
                         reviewCountToShow.toString(),
                         'Trabajos',
                       ),
                       _buildStatDivider(),
-                      _buildStat('📅', _sinceText(profile.createdAt), 'Zervi'),
+                      _buildStat(
+                        Icons.calendar_today_rounded,
+                        _sinceText(profile.createdAt),
+                        'Zervi',
+                      ),
                     ],
                   ),
                 ),
@@ -212,6 +216,12 @@ class ProfileScreen extends ConsumerWidget {
                       if (isMe) ...[
                         _buildRoleSwitcherCard(context, ref, userMode),
                         const SizedBox(height: 16),
+                        if (userMode == UserMode.professional) ...[
+                          _buildClientsCard(context, isDark),
+                          const SizedBox(height: 16),
+                          _buildMetricsCard(context, isDark),
+                          const SizedBox(height: 16),
+                        ],
                         _buildThemeSwitcherCard(context, ref, themeMode),
                         const SizedBox(height: 24),
                       ],
@@ -361,11 +371,15 @@ class ProfileScreen extends ConsumerWidget {
                                                       color: isDark ? Colors.white30 : Colors.black26,
                                                     ),
                                                     const SizedBox(width: 2),
-                                                    Text(
-                                                      listing.city ?? 'Posadas',
-                                                      style: TextStyle(
-                                                        color: isDark ? Colors.white30 : Colors.black26,
-                                                        fontSize: 10,
+                                                    Flexible(
+                                                      child: Text(
+                                                        listing.city ?? 'Posadas',
+                                                        style: TextStyle(
+                                                          color: isDark ? Colors.white30 : Colors.black26,
+                                                          fontSize: 10,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
                                                       ),
                                                     ),
                                                   ],
@@ -376,9 +390,9 @@ class ProfileScreen extends ConsumerWidget {
                                           if (listing.price != null)
                                             Text(
                                               '\$${listing.price!.toStringAsFixed(0)}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.green,
+                                                color: isDark ? Colors.white : Colors.black87,
                                               ),
                                             ),
                                         ],
@@ -444,18 +458,30 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildStat(String emoji, String value, String label) {
+  Widget _buildStat(IconData icon, String value, String label) {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            '$emoji $value',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: Colors.white70,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 2),
           Text(
             label,
             style: const TextStyle(color: Colors.white54, fontSize: 11),
@@ -582,6 +608,160 @@ class ProfileScreen extends ConsumerWidget {
                   Icons.chevron_right_rounded,
                   color: isDark ? Colors.white38 : Colors.black38,
                   size: 24,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientsCard(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E222B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push('/my-customers'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF2C1A3A) : const Color(0xFFF3E5F5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.people_alt_rounded,
+                    color: isDark ? const Color(0xFFD18EED) : const Color(0xFF7B1FA2),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mis Clientes',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black87,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Visualizá tu cartera de clientes y frecuencia de turnos',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.white30 : Colors.black26,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsCard(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E222B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push('/metrics'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A2E3D) : const Color(0xFFE3F2FD),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.bar_chart_rounded,
+                    color: isDark ? const Color(0xFF64B5F6) : const Color(0xFF1565C0),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Métricas y Rendimiento',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black87,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Revisá tus ingresos, trabajos realizados y estadísticas',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.white30 : Colors.black26,
                 ),
               ],
             ),

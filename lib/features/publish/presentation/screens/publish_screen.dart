@@ -5,10 +5,10 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:zenvi/core/theme/map_styles.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
@@ -26,7 +26,7 @@ class PublishScreen extends ConsumerStatefulWidget {
 class _PublishScreenState extends ConsumerState<PublishScreen> {
   bool _isLoading = false;
   int _currentStep = 0;
-  int get _totalSteps => _isService ? 6 : 5;
+  int get _totalSteps => 5;
   late ListingType _type;
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
@@ -58,7 +58,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   double? _lng;
 
   // Map & Location
-  final MapController _mapController = MapController();
+  GoogleMapController? _googleMapController;
   bool _isSearchingLocation = false;
   List<dynamic> _locationSuggestions = [];
 
@@ -93,10 +93,10 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         },
       ];
     }
-    _loadExistingAvailability();
+    _loadUserProfile();
   }
 
-  Future<void> _loadExistingAvailability() async {
+  Future<void> _loadUserProfile() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
@@ -109,26 +109,8 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           _acceptsEmergencies = profile.acceptsEmergencies;
         });
       }
-
-      final availability = await ref
-          .read(profileRepositoryProvider)
-          .getAvailability(profileId: user.id);
-      if (availability.isNotEmpty) {
-        // Limpiar defaults
-        for (var key in _dailyRanges.keys) {
-          _dailyRanges[key] = [];
-        }
-        // Llenar con lo que hay en DB
-        for (var a in availability) {
-          _dailyRanges[a.dayOfWeek]!.add({
-            'start': a.startTime,
-            'end': a.endTime,
-          });
-        }
-        if (mounted) setState(() {});
-      }
     } catch (e) {
-      debugPrint('Error loading availability: $e');
+      debugPrint('Error loading user profile: $e');
     }
   }
 
@@ -535,61 +517,85 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         ),
 
         // Sugerencias (ayuda opcional)
-        if (_locationSuggestions.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Theme.of(context).brightness == Brightness.dark ? Border.all(color: Colors.white10) : null,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 15,
-                ),
-              ],
-            ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _locationSuggestions.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-              itemBuilder: (context, index) {
-                final s = _locationSuggestions[index];
-                final address = s['address'] as Map<String, dynamic>? ?? {};
-                final city = (s['name'] ?? '').toString();
-                final state = (address['state'] ?? '').toString();
-                final displayText = state.isNotEmpty ? '$city, $state' : city;
-                return ListTile(
-                  dense: true,
-                  leading: Icon(
-                    Icons.location_on_outlined,
-                    size: 18,
-                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
+        if (_locationSuggestions.isNotEmpty) Builder(
+          builder: (context) {
+            final Map<String, dynamic> uniqueMap = {};
+            for (var item in _locationSuggestions) {
+              final address = item['address'] as Map<String, dynamic>? ?? {};
+              final rawName = (item['name'] ?? '').toString();
+              String cityName = address['city'] ?? address['town'] ?? address['village'] ?? address['suburb'] ?? rawName;
+              
+              if (cityName.startsWith('Municipio de ')) {
+                cityName = cityName.substring('Municipio de '.length);
+              }
+              if (cityName.startsWith('Gran ')) {
+                cityName = cityName.substring('Gran '.length);
+              }
+              
+              final state = (address['state'] ?? '').toString();
+              final displayText = state.isNotEmpty ? '$cityName, $state' : cityName;
+              
+              if (!uniqueMap.containsKey(displayText)) {
+                uniqueMap[displayText] = item;
+              }
+            }
+            
+            final uniqueItems = uniqueMap.entries.toList();
+            
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E222B) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Theme.of(context).brightness == Brightness.dark ? Border.all(color: Colors.white10) : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 15,
                   ),
-                  title: Text(
-                    displayText,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                ],
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: uniqueItems.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                itemBuilder: (context, index) {
+                  final entry = uniqueItems[index];
+                  final displayText = entry.key;
+                  final s = entry.value;
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38,
                     ),
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _cityController.text = displayText;
-                      _lat = double.parse(s['lat']);
-                      _lng = double.parse(s['lon']);
-                      _locationSuggestions = [];
-                    });
-                    _mapController.move(LatLng(_lat!, _lng!), 13.0);
-                    FocusScope.of(context).unfocus();
-                  },
-                );
-              },
-            ),
-          ),
+                    title: Text(
+                      displayText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _cityController.text = displayText;
+                        _lat = double.parse(s['lat']);
+                        _lng = double.parse(s['lon']);
+                        _locationSuggestions = [];
+                      });
+                      _googleMapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(_lat!, _lng!), 13.0));
+                      FocusScope.of(context).unfocus();
+                    },
+                  );
+                },
+              ),
+            );
+          }
+        ),
 
         const SizedBox(height: 24),
 
@@ -692,96 +698,36 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: LatLng(_lat ?? -27.367, _lng ?? -55.896),
-                initialZoom: 13.5,
-                onTap: (_, point) => setState(() {
-                  _lat = point.latitude;
-                  _lng = point.longitude;
-                }),
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(_lat ?? -27.367, _lng ?? -55.896),
+                zoom: 13.5,
               ),
-              children: [
-                ColorFiltered(
-                  colorFilter: Theme.of(context).brightness == Brightness.dark
-                      ? const ColorFilter.matrix([
-                          -0.213, -0.715, -0.072, 0, 255,
-                          -0.213, -0.715, -0.072, 0, 255,
-                          -0.213, -0.715, -0.072, 0, 255,
-                          0,      0,      0,      1, 0,
-                        ])
-                      : const ColorFilter.matrix([
-                          0.33,
-                          0.33,
-                          0.33,
-                          0,
-                          0,
-                          0.33,
-                          0.33,
-                          0.33,
-                          0,
-                          0,
-                          0.33,
-                          0.33,
-                          0.33,
-                          0,
-                          0,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                        ]),
-                  child: TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.zervi.app',
-                  ),
-                ),
-                RichAttributionWidget(
-                  alignment: AttributionAlignment.bottomLeft,
-                  attributions: [
-                    TextSourceAttribution(
-                      'OpenStreetMap contributors',
-                      onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
-                    ),
-                  ],
-                ),
-                if (_lat != null && _lng != null)
-                  MarkerLayer(
-                    markers: [
+              onMapCreated: (controller) {
+                _googleMapController = controller;
+                controller.setMapStyle(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? googleMapDarkStyle
+                      : googleMapLightStyle,
+                );
+              },
+              onTap: (point) => setState(() {
+                _lat = point.latitude;
+                _lng = point.longitude;
+              }),
+              markers: _lat == null || _lng == null
+                  ? {}
+                  : {
                       Marker(
-                        point: LatLng(_lat!, _lng!),
-                        width: 40,
-                        height: 40,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: _type == ListingType.service
-                                ? const Color(0xFF3B82F6)
-                                : const Color(0xFFF59E0B),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              _getCategoryIcon(_selectedCategory),
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
+                        markerId: const MarkerId('publish_location'),
+                        position: LatLng(_lat!, _lng!),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(
+                          _type == ListingType.service
+                              ? BitmapDescriptor.hueBlue
+                              : BitmapDescriptor.hueOrange,
                         ),
                       ),
-                    ],
-                  ),
-              ],
+                    },
             ),
           ),
         ),
@@ -836,6 +782,64 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         _buildStepTitle(
           'Tu disponibilidad',
           'Configurá los días y horarios en los que atendés.',
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? const Color(0xFF1E2E3D) 
+                : const Color(0xFFE3F2FD),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? const Color(0xFF1A3D54) 
+                  : const Color(0xFF90CAF9),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF64B5F6) 
+                    : const Color(0xFF1565C0),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Opcional: Horarios Flexibles',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF64B5F6) 
+                            : const Color(0xFF1565C0),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'No hace falta configurar horarios fijos aquí si no querés. Podés crear y coordinar turnos con horarios dinámicos directamente desde el chat de un cliente o tu agenda en cualquier momento.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.white70 
+                            : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
         Center(
@@ -1353,7 +1357,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
         _lat = position.latitude;
         _lng = position.longitude;
       });
-      _mapController.move(LatLng(_lat!, _lng!), 14.0);
+      _googleMapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(_lat!, _lng!), 14.0));
     } catch (e) {
       debugPrint('Error GPS: $e');
     }
@@ -1377,40 +1381,20 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
   }
 
   bool _canGoNext() {
-    if (_isService) {
-      switch (_currentStep) {
-        case 0:
-          return _titleController.text.trim().isNotEmpty &&
-              _selectedCategory != null;
-        case 1:
-          return _descriptionController.text.trim().isNotEmpty;
-        case 2:
-          return _workMode != null;
-        case 3:
-          return _cityController.text.isNotEmpty;
-        case 4:
-          return true; // Disponibilidad (opcional)
-        case 5:
-          return true; // Preferencias (opcional)
-        default:
-          return true;
-      }
-    } else {
-      switch (_currentStep) {
-        case 0:
-          return _titleController.text.trim().isNotEmpty &&
-              _selectedCategory != null;
-        case 1:
-          return _descriptionController.text.trim().isNotEmpty;
-        case 2:
-          return _workMode != null;
-        case 3:
-          return _cityController.text.isNotEmpty;
-        case 4:
-          return true; // Preferencias (opcional)
-        default:
-          return true;
-      }
+    switch (_currentStep) {
+      case 0:
+        return _titleController.text.trim().isNotEmpty &&
+            _selectedCategory != null;
+      case 1:
+        return _descriptionController.text.trim().isNotEmpty;
+      case 2:
+        return _workMode != null;
+      case 3:
+        return _cityController.text.isNotEmpty;
+      case 4:
+        return true; // Preferencias (opcional)
+      default:
+        return true;
     }
   }
 
@@ -1507,27 +1491,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
             .createListing(listingData);
       }
 
-      // Guardar disponibilidad vinculada al SERVICIO
-      final List<Map<String, dynamic>> availabilityData = [];
-      _dailyRanges.forEach((day, ranges) {
-        for (var r in ranges) {
-          availabilityData.add({
-            'day_of_week': day,
-            'start_time':
-                '${r['start']!.hour.toString().padLeft(2, '0')}:${r['start']!.minute.toString().padLeft(2, '0')}',
-            'end_time':
-                '${r['end']!.hour.toString().padLeft(2, '0')}:${r['end']!.minute.toString().padLeft(2, '0')}',
-          });
-        }
-      });
 
-      await ref
-          .read(profileRepositoryProvider)
-          .updateAvailability(
-            profileId: user.id,
-            listingId: createdListing.id,
-            availabilityData: availabilityData,
-          );
 
       if (mounted) {
         ref.invalidate(listingsProvider);
@@ -1610,9 +1574,7 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                   ? _buildStep3()
                   : _currentStep == 3
                   ? _buildStep4()
-                  : _isService
-                      ? (_currentStep == 4 ? _buildStep5() : _buildStep6())
-                      : _buildStep6(),
+                  : _buildStep6(),
             ),
           ),
           // Botón fijo en la parte inferior, NO afectado por el teclado

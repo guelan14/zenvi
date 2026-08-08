@@ -95,7 +95,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
                   ),
                   data: (listing) {
                     if (listing == null) return const SizedBox();
-                    return _buildListingCard(context, listing);
+                    return _buildListingCard(context, listing, appointment);
                   },
                 ),
                 const SizedBox(height: 20),
@@ -153,6 +153,11 @@ class AppointmentDetailScreen extends ConsumerWidget {
         color = Colors.orange;
         statusText = 'Pendiente de confirmación';
         icon = Icons.hourglass_empty_rounded;
+        break;
+      case AppointmentStatus.proposed:
+        color = Colors.orange;
+        statusText = 'Propuesta de turno';
+        icon = Icons.mail_outline_rounded;
         break;
       case AppointmentStatus.accepted:
         color = Colors.green;
@@ -266,8 +271,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
     dynamic listing,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final priceText = listing?.price != null
-        ? '\$${listing.price!.toStringAsFixed(0)}'
+    final double? displayPrice = appointment.price ?? (listing?.price != null ? (listing!.price as num).toDouble() : null);
+    final priceText = displayPrice != null
+        ? '\$${displayPrice.toStringAsFixed(0)}'
         : 'A convenir';
 
     return Container(
@@ -464,8 +470,10 @@ class AppointmentDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildListingCard(BuildContext context, dynamic listing) {
+  Widget _buildListingCard(BuildContext context, dynamic listing, Appointment appointment) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final double? displayPrice = appointment.price ?? (listing?.price != null ? (listing!.price as num).toDouble() : null);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -546,14 +554,14 @@ class AppointmentDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
-          if (listing.price != null) ...[
+          if (displayPrice != null) ...[
             const SizedBox(height: 8),
             Text(
-              '\$${listing.price!.toStringAsFixed(0)}',
-              style: const TextStyle(
+              '\$${displayPrice.toStringAsFixed(0)}',
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: Colors.green,
+                color: isDark ? Colors.white : Colors.black87,
               ),
             ),
           ],
@@ -710,6 +718,8 @@ class AppointmentDetailScreen extends ConsumerWidget {
   ) {
     final repository = ref.read(appointmentRepositoryProvider);
 
+    final isProposedByProfessional = appointment.status == AppointmentStatus.proposed || appointment.createdByProvider == true;
+
     Future<void> updateStatus(
       AppointmentStatus newStatus,
       String successMsg,
@@ -735,7 +745,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
               : 'cancelado';
 
           final messageContent =
-              '🔔 El turno (ID: ${appointment.id}) fue $statusLabel.';
+              'El turno (ID: ${appointment.id}) fue $statusLabel.';
           await ref
               .read(chatRepositoryProvider)
               .sendMessage(conversation.id, currentUserId, messageContent);
@@ -761,8 +771,10 @@ class AppointmentDetailScreen extends ConsumerWidget {
       }
     }
 
-    if (appointment.status == AppointmentStatus.pending) {
-      if (isProfessional) {
+    if (appointment.status == AppointmentStatus.pending || appointment.status == AppointmentStatus.proposed) {
+      final showAcceptReject = appointment.status == AppointmentStatus.proposed ? !isProfessional : isProfessional;
+
+      if (showAcceptReject) {
         return Row(
           children: [
             Expanded(
@@ -809,13 +821,12 @@ class AppointmentDetailScreen extends ConsumerWidget {
           ],
         );
       } else {
-        // Client can cancel pending requests
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () => updateStatus(
               AppointmentStatus.cancelled,
-              'Solicitud de turno cancelada.',
+              isProposedByProfessional ? 'Propuesta de turno cancelada.' : 'Solicitud de turno cancelada.',
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -825,9 +836,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
               ),
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: const Text(
-              'Cancelar Solicitud',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            child: Text(
+              isProposedByProfessional ? 'Cancelar Propuesta' : 'Cancelar Solicitud',
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         );

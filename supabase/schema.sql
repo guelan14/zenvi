@@ -110,14 +110,16 @@ CREATE TABLE user_ratings (
 
 -- Appointments (scheduled jobs/services with 5 status types)
 CREATE TABLE appointments (
-  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  client_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  provider_id    UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  listing_id     UUID REFERENCES listings(id) ON DELETE SET NULL,
-  scheduled_at   TIMESTAMP WITH TIME ZONE NOT NULL,
-  notes          TEXT,
-  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'completed', 'cancelled')),
-  created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_id           UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  provider_id         UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  listing_id          UUID REFERENCES listings(id) ON DELETE SET NULL,
+  scheduled_at        TIMESTAMP WITH TIME ZONE NOT NULL,
+  notes               TEXT,
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'completed', 'cancelled')),
+  price               NUMERIC,
+  created_by_provider BOOLEAN DEFAULT FALSE,
+  created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- ============================================================

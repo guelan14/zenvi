@@ -17,6 +17,7 @@ import 'package:zenvi/features/messages/presentation/screens/chat_screen.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/features/profile/presentation/screens/metrics_screen.dart';
+import 'package:zenvi/features/profile/presentation/screens/my_customers_screen.dart';
 
 /// Routes that require authentication. Unauthenticated access redirects to /auth.
 const _protectedRoutes = {
@@ -27,6 +28,7 @@ const _protectedRoutes = {
   '/chat_user',
   '/appointment',
   '/metrics',
+  '/my-customers',
 };
 
 // ─── Notifier (bridges Riverpod → GoRouter refreshListenable) ─────────────────
@@ -81,10 +83,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
           GoRoute(path: '/map', builder: (context, state) => const MapScreen()),
-          GoRoute(
-            path: '/metrics',
-            builder: (context, state) => const MetricsScreen(),
-          ),
           GoRoute(
             path: '/agenda',
             builder: (context, state) => const AppointmentsScreen(),
@@ -166,6 +164,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final userId = state.pathParameters['id']!;
           return ChatScreen(otherUserId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/my-customers',
+        builder: (context, state) {
+          return const MyCustomersScreen();
+        },
+      ),
+      GoRoute(
+        path: '/metrics',
+        builder: (context, state) {
+          return const MetricsScreen();
         },
       ),
     ],
