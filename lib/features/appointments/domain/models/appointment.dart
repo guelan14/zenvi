@@ -3,7 +3,8 @@ enum AppointmentStatus { pending, proposed, accepted, rejected, completed, cance
 class Appointment {
   final String id;
   final String listingId;
-  final String customerId;
+  final String? customerId;
+  final String? customClientId;
   final String professionalId;
   final DateTime scheduledAt;
   final String? notes;
@@ -15,7 +16,8 @@ class Appointment {
   Appointment({
     required this.id,
     required this.listingId,
-    required this.customerId,
+    this.customerId,
+    this.customClientId,
     required this.professionalId,
     required this.scheduledAt,
     this.notes,
@@ -28,9 +30,10 @@ class Appointment {
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
       id: json['id'],
-      listingId: json['listing_id'],
+      listingId: json['listing_id'] ?? '',
       customerId: json['client_id'],
-      professionalId: json['provider_id'],
+      customClientId: json['custom_client_id'],
+      professionalId: json['provider_id'] ?? '',
       scheduledAt: DateTime.parse(json['scheduled_at']),
       notes: json['notes'],
       status: _parseStatus(json['status']),
@@ -41,10 +44,9 @@ class Appointment {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final Map<String, dynamic> data = {
       'id': id,
       'listing_id': listingId,
-      'client_id': customerId,
       'provider_id': professionalId,
       'scheduled_at': scheduledAt.toIso8601String(),
       'notes': notes,
@@ -52,6 +54,13 @@ class Appointment {
       'price': price,
       'created_by_provider': createdByProvider,
     };
+    if (customerId != null) {
+      data['client_id'] = customerId;
+    }
+    if (customClientId != null) {
+      data['custom_client_id'] = customClientId;
+    }
+    return data;
   }
 
   static AppointmentStatus _parseStatus(String? status) {

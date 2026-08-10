@@ -321,3 +321,118 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_rating_inserted
   AFTER INSERT ON user_ratings
   FOR EACH ROW EXECUTE PROCEDURE public.update_profile_rating();
+
+-- ============================================================
+-- 7. CLIENTES PROFESIONALES Y AGENDAMIENTO EXTERNO (MIGRATION)
+-- ============================================================
+
+-- Tabla para guardar los clientes directos/manuales del profesional
+CREATE TABLE IF NOT EXISTS public.professional_clients (
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  professional_id     UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  client_profile_id   UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- Se llena cuando se vinculan
+  full_name           TEXT NOT NULL,
+  email               TEXT,
+  phone               TEXT,
+  notes               TEXT,
+  created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Modificar tabla appointments para soportar clientes manuales
+ALTER TABLE public.appointments ALTER COLUMN client_id DROP NOT NULL;
+ALTER TABLE public.appointments ADD COLUMN IF NOT EXISTS custom_client_id UUID REFERENCES public.professional_clients(id) ON DELETE SET NULL;
+
+-- Habilitar RLS en professional_clients
+ALTER TABLE public.professional_clients ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de RLS para professional_clients
+CREATE POLICY "Professionals can manage their own clients"
+  ON public.professional_clients
+  FOR ALL
+  USING (auth.uid() = professional_id);
+
+-- Actualizar política de inserción en appointments para permitir agendamiento de profesionales
+DROP POLICY IF EXISTS "Clients can create appointments" ON public.appointments;
+CREATE POLICY "Parties can create appointments"
+  ON public.appointments FOR INSERT
+  WITH CHECK (auth.uid() = client_id OR auth.uid() = provider_id);
+
+-- Función SECURITY DEFINER para crear usuarios invitados en auth.users
+CREATE OR REPLACE FUNCTION public.create_invited_user_in_auth(
+  client_email TEXT,
+  client_name TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+  new_user_id UUID;
+BEGIN
+  -- Verificar si ya existe en auth.users
+  SELECT id INTO new_user_id FROM auth.users WHERE email = client_email;
+  
+  IF new_user_id IS NOT NULL THEN
+    RETURN new_user_id;
+  END IF;
+  
+  -- Generar nuevo UUID
+  new_user_id := gen_random_uuid();
+  
+  -- Insertar usuario inactivo en auth.users
+  INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    new_user_id,
+    'authenticated',
+    'authenticated',
+    client_email,
+    -- Contraseña inútil por defecto, forzando recuperación
+    '$2a$10$C8.m/L2Ctfu8fLzUe7t9V.V1/2W93N3X7g47t4G3rN.H3t5yG1Q2u',
+    NULL,
+    '{"provider": "email", "providers": ["email"]}',
+    jsonb_build_object('full_name', client_name),
+    NOW(),
+    NOW()
+  );
+  
+  RETURN new_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Reemplazar handle_new_user para auto-vincular clientes y turnos por email
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- 1. Insertar el perfil
+  INSERT INTO public.profiles (id, full_name, avatar_url)
+  VALUES (
+    new.id,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'avatar_url'
+  );
+  
+  -- 2. Vincular registros en professional_clients
+  UPDATE public.professional_clients
+  SET client_profile_id = new.id
+  WHERE email = new.email;
+  
+  -- 3. Vincular turnos agendados previamente con ese email
+  UPDATE public.appointments
+  SET client_id = new.id
+  WHERE custom_client_id IN (
+    SELECT id FROM public.professional_clients WHERE email = new.email
+  );
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

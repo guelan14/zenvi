@@ -12,6 +12,7 @@ import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
+import 'package:zenvi/features/profile/presentation/screens/my_customers_screen.dart';
 
 class AppointmentsScreen extends ConsumerStatefulWidget {
   const AppointmentsScreen({super.key});
@@ -473,35 +474,61 @@ class _CreateAppointmentBottomSheetState
       );
     }
 
-    if (resolvedContacts.isEmpty &&
-        !isLoadingContacts &&
-        conversations.isNotEmpty) {
-      isLoadingContacts = true;
-      Future.microtask(() async {
-        final list = <Map<String, String>>[];
-        for (var conv in conversations) {
-          final oId = conv.initiatorId == currentUserId
-              ? conv.recipientId
-              : conv.initiatorId;
-          try {
-            final p = await ref.read(profileProvider(oId).future);
-            if (p != null) {
-              list.add({'id': oId, 'name': p.fullName ?? 'Usuario'});
+    final List<Map<String, dynamic>> itemsList = [];
+
+    if (userMode == UserMode.professional) {
+      final customers = ref.watch(myCustomersProvider).value ?? [];
+      for (var c in customers) {
+        itemsList.add({
+          'value': '${c.customClient?.clientProfileId ?? c.profile?.id ?? ''}|${c.customClient?.id ?? ''}',
+          'name': c.displayName,
+          'is_registered': c.profile != null || c.customClient?.clientProfileId != null,
+        });
+      }
+      if (selectedContactId == null && itemsList.isNotEmpty) {
+        selectedContactId = itemsList.first['value'];
+      }
+    } else {
+      if (resolvedContacts.isEmpty &&
+          !isLoadingContacts &&
+          conversations.isNotEmpty) {
+        isLoadingContacts = true;
+        Future.microtask(() async {
+          final list = <Map<String, String>>[];
+          for (var conv in conversations) {
+            final oId = conv.initiatorId == currentUserId
+                ? conv.recipientId
+                : conv.initiatorId;
+            try {
+              final p = await ref.read(profileProvider(oId).future);
+              if (p != null) {
+                list.add({'id': oId, 'name': p.fullName ?? 'Usuario'});
+              }
+            } catch (_) {
+              list.add({'id': oId, 'name': 'Usuario ($oId)'});
             }
-          } catch (_) {
-            list.add({'id': oId, 'name': 'Usuario ($oId)'});
           }
-        }
-        if (mounted) {
-          setState(() {
-            resolvedContacts = list;
-            isLoadingContacts = false;
-            if (resolvedContacts.isNotEmpty) {
-              selectedContactId = resolvedContacts.first['id'];
-            }
-          });
-        }
-      });
+          if (mounted) {
+            setState(() {
+              resolvedContacts = list;
+              isLoadingContacts = false;
+              if (resolvedContacts.isNotEmpty) {
+                selectedContactId = resolvedContacts.first['id'];
+              }
+            });
+          }
+        });
+      }
+      for (var c in resolvedContacts) {
+        itemsList.add({
+          'value': c['id']!,
+          'name': c['name']!,
+          'is_registered': true,
+        });
+      }
+      if (selectedContactId == null && itemsList.isNotEmpty) {
+        selectedContactId = itemsList.first['value'];
+      }
     }
 
     final professionalId = userMode == UserMode.professional
@@ -603,11 +630,13 @@ class _CreateAppointmentBottomSheetState
           const SizedBox(height: 8),
           if (isLoadingContacts)
             const Center(child: CircularProgressIndicator())
-          else if (resolvedContacts.isEmpty)
+          else if (itemsList.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: Text(
-                'No tenés chats activos con contactos.',
+                userMode == UserMode.professional
+                    ? 'No tenés clientes registrados aún.'
+                    : 'No tenés chats activos con contactos.',
                 style: TextStyle(
                   color: isDark ? Colors.white30 : Colors.black38,
                   fontSize: 13,
@@ -633,10 +662,10 @@ class _CreateAppointmentBottomSheetState
                 fontSize: 14,
                 color: isDark ? Colors.white : Colors.black87,
               ),
-              items: resolvedContacts.map((c) {
+              items: itemsList.map((c) {
                 return DropdownMenuItem<String>(
-                  value: c['id'],
-                  child: Text(c['name']!),
+                  value: c['value'],
+                  child: Text(c['name']),
                 );
               }).toList(),
               onChanged: (val) {
@@ -893,15 +922,29 @@ class _CreateAppointmentBottomSheetState
                       final finalPrice =
                           double.tryParse(priceController.text.trim()) ?? 0.0;
 
+                      String? selectedProfileId;
+                      String? selectedCustomClientId;
+
+                      if (userMode == UserMode.professional && selectedContactId != null) {
+                        final parts = selectedContactId!.split('|');
+                        selectedProfileId = parts[0].isNotEmpty ? parts[0] : null;
+                        selectedCustomClientId = parts[1].isNotEmpty ? parts[1] : null;
+                      } else {
+                        selectedProfileId = selectedContactId;
+                      }
+
                       final appointment = Appointment(
                         id: const Uuid().v4(),
                         listingId: selectedListingId!,
                         customerId: userMode == UserMode.professional
-                            ? selectedContactId!
+                            ? selectedProfileId
                             : currentUserId,
+                        customClientId: userMode == UserMode.professional
+                            ? selectedCustomClientId
+                            : null,
                         professionalId: userMode == UserMode.professional
                             ? currentUserId
-                            : selectedContactId!,
+                            : selectedProfileId!,
                         scheduledAt: start,
                         price: finalPrice > 0 ? finalPrice : null,
                         status: userMode == UserMode.professional
@@ -918,7 +961,7 @@ class _CreateAppointmentBottomSheetState
                             .read(appointmentRepositoryProvider)
                             .createAppointment(appointment);
 
-                        // Enviar mensaje al chat
+                        // Enviar mensaje al chat si el cliente tiene un perfil de chat registrado
                         final dateStr = DateFormat('dd/MM/yyyy').format(start);
                         final timeStr = DateFormat('HH:mm').format(start);
                         final priceStr = finalPrice > 0
@@ -929,19 +972,21 @@ class _CreateAppointmentBottomSheetState
                             ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
                             : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
 
-                        final conversation = ref
-                            .read(
-                              currentConversationProvider(selectedContactId!),
-                            )
-                            .value;
-                        if (conversation != null) {
-                          await ref
-                              .read(chatRepositoryProvider)
-                              .sendMessage(
-                                conversation.id,
-                                currentUserId,
-                                messageContent,
-                              );
+                        if (selectedProfileId != null) {
+                          final conversation = ref
+                              .read(
+                                currentConversationProvider(selectedProfileId),
+                              )
+                              .value;
+                          if (conversation != null) {
+                            await ref
+                                .read(chatRepositoryProvider)
+                                .sendMessage(
+                                  conversation.id,
+                                  currentUserId,
+                                  messageContent,
+                                );
+                          }
                         }
 
                         if (context.mounted) {

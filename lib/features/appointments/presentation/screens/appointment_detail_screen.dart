@@ -7,7 +7,10 @@ import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
+import 'package:zenvi/shared/domain/models/profile.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
+import 'package:zenvi/features/profile/domain/models/professional_client.dart';
+import 'package:zenvi/features/profile/domain/providers/professional_client_providers.dart';
 import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 
@@ -58,7 +61,13 @@ class AppointmentDetailScreen extends ConsumerWidget {
               ? appointment.customerId
               : appointment.professionalId;
 
-          final otherProfileAsync = ref.watch(profileProvider(otherUserId));
+          final otherProfileAsync = otherUserId != null
+              ? ref.watch(profileProvider(otherUserId))
+              : const AsyncValue<Profile?>.data(null);
+
+          final customClientAsync = appointment.customClientId != null
+              ? ref.watch(professionalClientByIdProvider(appointment.customClientId!))
+              : const AsyncValue<ProfessionalClient?>.data(null);
           final listingAsync = ref.watch(
             listingByIdProvider(appointment.listingId),
           );
@@ -100,20 +109,35 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // 4. Datos de la otra persona (Profesional / Cliente)
-                otherProfileAsync.when(
-                  loading: () => const ZerviContactCardSkeleton(),
-                  error: (e, _) => const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('No se pudo cargar el perfil del contacto.'),
+                // 4. Datos de la otra persona (Profesional / Cliente / Externo)
+                if (otherUserId != null)
+                  otherProfileAsync.when(
+                    loading: () => const ZerviContactCardSkeleton(),
+                    error: (e, _) => const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No se pudo cargar el perfil del contacto.'),
+                      ),
                     ),
+                    data: (profile) {
+                      if (profile == null) return const SizedBox();
+                      return _buildContactCard(context, profile, isProfessional);
+                    },
+                  )
+                else
+                  customClientAsync.when(
+                    loading: () => const ZerviContactCardSkeleton(),
+                    error: (e, _) => const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No se pudo cargar la información del cliente.'),
+                      ),
+                    ),
+                    data: (client) {
+                      if (client == null) return const SizedBox();
+                      return _buildCustomClientCard(context, client, isDark);
+                    },
                   ),
-                  data: (profile) {
-                    if (profile == null) return const SizedBox();
-                    return _buildContactCard(context, profile, isProfessional);
-                  },
-                ),
 
                 // 5. Notas
                 if (appointment.notes != null &&
@@ -713,7 +737,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     Appointment appointment,
     bool isProfessional,
-    String otherUserId,
+    String? otherUserId,
     String? currentUserId,
   ) {
     final repository = ref.read(appointmentRepositoryProvider);
@@ -731,7 +755,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
         ref.invalidate(appointmentByIdProvider(appointment.id));
         ref.invalidate(userAppointmentsProvider);
 
-        if (currentUserId != null) {
+        if (currentUserId != null && otherUserId != null) {
           final conversation = await ref
               .read(chatRepositoryProvider)
               .getOrCreateConversation(currentUserId, otherUserId);
@@ -921,5 +945,86 @@ class AppointmentDetailScreen extends ConsumerWidget {
     }
 
     return const SizedBox();
+  }
+
+  Widget _buildCustomClientCard(BuildContext context, ProfessionalClient client, bool isDark) {
+    return Card(
+      color: isDark ? const Color(0xFF1E222B) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04),
+        ),
+      ),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Datos del Cliente (Externo)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                  child: Text(
+                    client.fullName.isNotEmpty ? client.fullName[0].toUpperCase() : 'C',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        client.fullName,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      if (client.email != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          client.email!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white30 : Colors.black45,
+                          ),
+                        ),
+                      ],
+                      if (client.phone != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          client.phone!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white30 : Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
