@@ -13,6 +13,7 @@ import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/profile/presentation/screens/my_customers_screen.dart';
+import 'package:zenvi/core/supabase/supabase_config.dart';
 
 class AppointmentsScreen extends ConsumerStatefulWidget {
   const AppointmentsScreen({super.key});
@@ -536,7 +537,7 @@ class _CreateAppointmentBottomSheetState
               isLoadingContacts = false;
               if (localListings.isNotEmpty) {
                 selectedListingId = localListings.first.id;
-                selectedContactId = localListings.first.userId;
+                selectedContactId = localListings.first.authorId;
                 if (localListings.first.price != null) {
                   priceController.text = localListings.first.price!
                       .toStringAsFixed(0);
@@ -795,7 +796,7 @@ class _CreateAppointmentBottomSheetState
                   color: isDark ? Colors.white : Colors.black87,
                 ),
                 items: localListings.map((l) {
-                  final profName = professionalNamesMap[l.userId] ?? 'Profesional';
+                  final profName = professionalNamesMap[l.authorId] ?? 'Profesional';
                   return DropdownMenuItem<String>(
                     value: l.id,
                     child: Text('${l.title} ($profName)', overflow: TextOverflow.ellipsis),
@@ -807,7 +808,7 @@ class _CreateAppointmentBottomSheetState
                     final selectedList = localListings.firstWhere(
                       (l) => l.id == val,
                     );
-                    selectedContactId = selectedList.userId;
+                    selectedContactId = selectedList.authorId;
                     if (selectedList.price != null) {
                       priceController.text = selectedList.price!
                           .toStringAsFixed(0);
