@@ -443,6 +443,7 @@ class _CreateAppointmentBottomSheetState
 
   bool isLoadingListings = false;
   List<Listing> localListings = [];
+  Map<String, String> professionalNamesMap = {};
 
   bool _isSaving = false;
 
@@ -495,6 +496,8 @@ class _CreateAppointmentBottomSheetState
         isLoadingContacts = true;
         Future.microtask(() async {
           final list = <Map<String, String>>[];
+          final profIds = <String>[];
+          final namesMap = <String, String>{};
           for (var conv in conversations) {
             final oId = conv.initiatorId == currentUserId
                 ? conv.recipientId
@@ -503,46 +506,56 @@ class _CreateAppointmentBottomSheetState
               final p = await ref.read(profileProvider(oId).future);
               if (p != null) {
                 list.add({'id': oId, 'name': p.fullName ?? 'Usuario'});
+                profIds.add(oId);
+                namesMap[oId] = p.fullName ?? 'Usuario';
               }
             } catch (_) {
               list.add({'id': oId, 'name': 'Usuario ($oId)'});
+              profIds.add(oId);
+              namesMap[oId] = 'Usuario ($oId)';
             }
           }
+
+          // Obtener publicaciones de todos los profesionales activos en chat
+          List<Listing> listings = [];
+          if (profIds.isNotEmpty) {
+            try {
+              final response = await ref.read(supabaseClientProvider)
+                  .from('listings')
+                  .select()
+                  .inFilter('user_id', profIds);
+              listings = (response as List).map((json) => Listing.fromJson(json)).toList();
+            } catch (_) {}
+          }
+
           if (mounted) {
             setState(() {
               resolvedContacts = list;
+              professionalNamesMap = namesMap;
+              localListings = listings;
               isLoadingContacts = false;
-              if (resolvedContacts.isNotEmpty) {
-                selectedContactId = resolvedContacts.first['id'];
+              if (localListings.isNotEmpty) {
+                selectedListingId = localListings.first.id;
+                selectedContactId = localListings.first.userId;
+                if (localListings.first.price != null) {
+                  priceController.text = localListings.first.price!
+                      .toStringAsFixed(0);
+                }
               }
             });
           }
         });
       }
-      for (var c in resolvedContacts) {
-        itemsList.add({
-          'value': c['id']!,
-          'name': c['name']!,
-          'is_registered': true,
-        });
-      }
-      if (selectedContactId == null && itemsList.isNotEmpty) {
-        selectedContactId = itemsList.first['value'];
-      }
     }
 
-    final professionalId = userMode == UserMode.professional
-        ? currentUserId
-        : selectedContactId;
-    if (professionalId != null &&
-        selectedContactId != null &&
+    if (userMode == UserMode.professional &&
         !isLoadingListings &&
         localListings.isEmpty) {
       isLoadingListings = true;
       Future.microtask(() async {
         try {
           final res = await ref.read(
-            profileListingsProvider(professionalId).future,
+            profileListingsProvider(currentUserId).future,
           );
           if (mounted) {
             setState(() {
@@ -615,71 +628,131 @@ class _CreateAppointmentBottomSheetState
             ),
           ),
           const SizedBox(height: 24),
-
-          // Selección de Contacto
-          Text(
-            userMode == UserMode.professional
-                ? 'Seleccionar Cliente'
-                : 'Seleccionar Profesional',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (isLoadingContacts)
-            const Center(child: CircularProgressIndicator())
-          else if (itemsList.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text(
-                userMode == UserMode.professional
-                    ? 'No tenés clientes registrados aún.'
-                    : 'No tenés chats activos con contactos.',
-                style: TextStyle(
-                  color: isDark ? Colors.white30 : Colors.black38,
-                  fontSize: 13,
-                ),
-              ),
-            )
-          else
-            DropdownButtonFormField<String>(
-              value: selectedContactId,
-              dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF14171E)
-                    : const Color(0xFFF5F5F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
+          // Selección de Contacto y Publicación en orden según UserMode
+          if (userMode == UserMode.professional) ...[
+            // 1. Seleccionar Cliente
+            Text(
+              'Seleccionar Cliente',
               style: TextStyle(
                 fontSize: 14,
-                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black87,
               ),
-              items: itemsList.map((c) {
-                return DropdownMenuItem<String>(
-                  value: c['value'],
-                  child: Text(c['name']),
-                );
-              }).toList(),
-              onChanged: (val) {
-                setState(() {
-                  selectedContactId = val;
-                  localListings = [];
-                  selectedListingId = null;
-                });
-              },
             ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            if (itemsList.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  'No tenés clientes registrados aún.',
+                  style: TextStyle(
+                    color: isDark ? Colors.white30 : Colors.black38,
+                    fontSize: 13,
+                  ),
+                ),
+              )
+            else
+              DropdownButtonFormField<String>(
+                value: selectedContactId,
+                dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: isDark
+                      ? const Color(0xFF14171E)
+                      : const Color(0xFFF5F5F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+                items: itemsList.map((c) {
+                  return DropdownMenuItem<String>(
+                    value: c['value'],
+                    child: Text(c['name']),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    selectedContactId = val;
+                    localListings = [];
+                    selectedListingId = null;
+                  });
+                },
+              ),
+            const SizedBox(height: 20),
 
-          // Selección de Publicación / Servicio
-          if (selectedContactId != null) ...[
+            // 2. Seleccionar Publicación / Servicio
+            if (selectedContactId != null) ...[
+              Text(
+                'Servicio / Publicación',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (isLoadingListings)
+                const Center(child: CircularProgressIndicator())
+              else if (localListings.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    'No tenés publicaciones activas.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white30 : Colors.black38,
+                      fontSize: 13,
+                    ),
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  value: selectedListingId,
+                  dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark
+                        ? const Color(0xFF14171E)
+                        : const Color(0xFFF5F5F5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  items: localListings.map((l) {
+                    return DropdownMenuItem<String>(
+                      value: l.id,
+                      child: Text(l.title, overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedListingId = val;
+                      final selectedList = localListings.firstWhere(
+                        (l) => l.id == val,
+                      );
+                      if (selectedList.price != null) {
+                        priceController.text = selectedList.price!
+                            .toStringAsFixed(0);
+                      }
+                    });
+                  },
+                ),
+              const SizedBox(height: 20),
+            ],
+          ] else ...[
+            // CLIENT MODE:
+            // 1. Seleccionar Servicio primero
             Text(
               'Servicio / Publicación',
               style: TextStyle(
@@ -689,15 +762,13 @@ class _CreateAppointmentBottomSheetState
               ),
             ),
             const SizedBox(height: 8),
-            if (isLoadingListings)
+            if (isLoadingContacts)
               const Center(child: CircularProgressIndicator())
             else if (localListings.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: Text(
-                  userMode == UserMode.professional
-                      ? 'No tenés publicaciones activas.'
-                      : 'El profesional no tiene publicaciones activas.',
+                  'No hay servicios disponibles de tus profesionales de chat.',
                   style: TextStyle(
                     color: isDark ? Colors.white30 : Colors.black38,
                     fontSize: 13,
@@ -724,9 +795,10 @@ class _CreateAppointmentBottomSheetState
                   color: isDark ? Colors.white : Colors.black87,
                 ),
                 items: localListings.map((l) {
+                  final profName = professionalNamesMap[l.userId] ?? 'Profesional';
                   return DropdownMenuItem<String>(
                     value: l.id,
-                    child: Text(l.title, overflow: TextOverflow.ellipsis),
+                    child: Text('${l.title} ($profName)', overflow: TextOverflow.ellipsis),
                   );
                 }).toList(),
                 onChanged: (val) {
@@ -735,6 +807,7 @@ class _CreateAppointmentBottomSheetState
                     final selectedList = localListings.firstWhere(
                       (l) => l.id == val,
                     );
+                    selectedContactId = selectedList.userId;
                     if (selectedList.price != null) {
                       priceController.text = selectedList.price!
                           .toStringAsFixed(0);
@@ -743,6 +816,48 @@ class _CreateAppointmentBottomSheetState
                 },
               ),
             const SizedBox(height: 20),
+
+            // 2. Mostrar Profesional asociado
+            if (selectedContactId != null) ...[
+              Text(
+                'Profesional',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline_rounded,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        professionalNamesMap[selectedContactId] ?? 'Profesional',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
           ],
 
           Row(
@@ -823,42 +938,84 @@ class _CreateAppointmentBottomSheetState
           const SizedBox(height: 20),
 
           // Precio
-          Text(
-            userMode == UserMode.professional
-                ? 'Monto / Presupuesto (\$)'
-                : 'Presupuesto ofrecido (\$)',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: priceController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              hintText: 'Ej: 15000',
-              hintStyle: TextStyle(
-                fontSize: 13,
-                color: isDark ? Colors.white30 : Colors.black38,
+          if (userMode == UserMode.professional) ...[
+            Text(
+              'Monto / Presupuesto (\$)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black87,
               ),
-              filled: true,
-              fillColor: isDark
-                  ? const Color(0xFF14171E)
-                  : const Color(0xFFF5F5F5),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: priceController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Ej: 15000',
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white30 : Colors.black38,
+                ),
+                filled: true,
+                fillColor: isDark
+                    ? const Color(0xFF14171E)
+                    : const Color(0xFFF5F5F5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(16),
               ),
-              contentPadding: const EdgeInsets.all(16),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
             ),
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
+          ] else ...[
+            // Para el cliente, mostramos el precio del servicio de forma informativa
+            if (selectedListingId != null) ...[
+              Text(
+                'Precio del Servicio',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sell_outlined,
+                      color: isDark ? Colors.white54 : Colors.black54,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      priceController.text.isNotEmpty && priceController.text != '0'
+                          ? '\$${priceController.text}'
+                          : 'A coordinar',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ],
 
           // Notas
           Text(
