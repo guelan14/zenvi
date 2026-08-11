@@ -396,8 +396,8 @@ BEGIN
     'authenticated',
     'authenticated',
     client_email,
-    -- Contraseña inútil por defecto, forzando recuperación
-    '$2a$10$C8.m/L2Ctfu8fLzUe7t9V.V1/2W93N3X7g47t4G3rN.H3t5yG1Q2u',
+    -- Hash aleatorio único por usuario (imposible de adivinar o descifrar)
+    '$2a$10$' || md5(random()::text) || md5(random()::text),
     NULL,
     '{"provider": "email", "providers": ["email"]}',
     jsonb_build_object('full_name', client_name),
