@@ -26,7 +26,7 @@ class PublishScreen extends ConsumerStatefulWidget {
 class _PublishScreenState extends ConsumerState<PublishScreen> {
   bool _isLoading = false;
   int _currentStep = 0;
-  int get _totalSteps => 5;
+  int get _totalSteps => 6;
   late ListingType _type;
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
@@ -928,9 +928,9 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                                   Expanded(
                                     child: _buildTimeChip(actualDay, rangeIndex, 'start', range['start']!),
                                   ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 12),
-                                    child: Text('a', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text('a', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontWeight: FontWeight.bold)),
                                   ),
                                   Expanded(
                                     child: _buildTimeChip(actualDay, rangeIndex, 'end', range['end']!),
@@ -1574,6 +1574,8 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
                   ? _buildStep3()
                   : _currentStep == 3
                   ? _buildStep4()
+                  : _currentStep == 4
+                  ? _buildStep5()
                   : _buildStep6(),
             ),
           ),
