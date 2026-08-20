@@ -99,13 +99,15 @@ CREATE TABLE messages (
 -- User Ratings (one rating per service request, per rater)
 CREATE TABLE user_ratings (
   id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  service_request_id UUID REFERENCES service_requests(id) ON DELETE CASCADE NOT NULL,
+  appointment_id     UUID REFERENCES appointments(id) ON DELETE CASCADE NOT NULL,
   rated_id           UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,  -- who is being rated
   rater_id           UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,  -- who is rating
   rating             INT  NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment            TEXT,
+  images             TEXT[] DEFAULT '{}',
+  moderation_status  TEXT DEFAULT 'approved' CHECK (moderation_status IN ('pending', 'approved', 'rejected')),
   created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT unique_rating_per_request UNIQUE (service_request_id, rater_id)
+  CONSTRAINT unique_rating_per_appointment UNIQUE (appointment_id, rater_id)
 );
 
 -- Appointments (scheduled jobs/services with 5 status types)
@@ -119,6 +121,8 @@ CREATE TABLE appointments (
   status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'completed', 'cancelled')),
   price               NUMERIC,
   created_by_provider BOOLEAN DEFAULT FALSE,
+  client_confirmed_completion   BOOLEAN DEFAULT FALSE,
+  provider_confirmed_completion BOOLEAN DEFAULT FALSE,
   created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -262,64 +266,68 @@ RETURNS TRIGGER AS $$
 DECLARE
   v_client_id UUID;
   v_provider_id UUID;
+  v_status TEXT;
 BEGIN
-  -- Obtener información de la solicitud de servicio vinculada
-  SELECT client_id, provider_id INTO v_client_id, v_provider_id
-  FROM service_requests
-  WHERE id = NEW.service_request_id;
+  -- Get information from the linked appointment
+  SELECT client_id, provider_id, status INTO v_client_id, v_provider_id, v_status
+  FROM public.appointments
+  WHERE id = NEW.appointment_id;
 
-  IF NEW.rated_id = v_provider_id THEN
-    -- Calificado como Profesional
-    UPDATE profiles
+  -- The rating is only calculated if the appointment is completed and rating is approved
+  IF NEW.moderation_status = 'approved' AND v_status = 'completed' THEN
+    IF NEW.rated_id = v_provider_id THEN
+      -- Rated as Professional
+      UPDATE public.profiles
+      SET
+        rating_avg_pro   = (
+          SELECT COALESCE(AVG(rating), 0)
+          FROM public.user_ratings ur
+          JOIN public.appointments app ON ur.appointment_id = app.id
+          WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = app.provider_id AND ur.moderation_status = 'approved' AND app.status = 'completed'
+        ),
+        review_count_pro = (
+          SELECT COUNT(*)
+          FROM public.user_ratings ur
+          JOIN public.appointments app ON ur.appointment_id = app.id
+          WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = app.provider_id AND ur.moderation_status = 'approved' AND app.status = 'completed'
+        ),
+        updated_at   = NOW()
+      WHERE id = NEW.rated_id;
+    ELSIF NEW.rated_id = v_client_id THEN
+      -- Rated as Client
+      UPDATE public.profiles
+      SET
+        rating_avg_client   = (
+          SELECT COALESCE(AVG(rating), 0)
+          FROM public.user_ratings ur
+          JOIN public.appointments app ON ur.appointment_id = app.id
+          WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = app.client_id AND ur.moderation_status = 'approved' AND app.status = 'completed'
+        ),
+        review_count_client = (
+          SELECT COUNT(*)
+          FROM public.user_ratings ur
+          JOIN public.appointments app ON ur.appointment_id = app.id
+          WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = app.client_id AND ur.moderation_status = 'approved' AND app.status = 'completed'
+        ),
+        updated_at   = NOW()
+      WHERE id = NEW.rated_id;
+    END IF;
+
+    -- Update overall rating for backward compatibility
+    UPDATE public.profiles
     SET
-      rating_avg_pro   = (
-        SELECT COALESCE(AVG(rating), 0)
-        FROM user_ratings ur
-        JOIN service_requests sr ON ur.service_request_id = sr.id
-        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.provider_id
-      ),
-      review_count_pro = (
-        SELECT COUNT(*)
-        FROM user_ratings ur
-        JOIN service_requests sr ON ur.service_request_id = sr.id
-        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.provider_id
-      ),
-      updated_at   = NOW()
-    WHERE id = NEW.rated_id;
-  ELSIF NEW.rated_id = v_client_id THEN
-    -- Calificado como Cliente
-    UPDATE profiles
-    SET
-      rating_avg_client   = (
-        SELECT COALESCE(AVG(rating), 0)
-        FROM user_ratings ur
-        JOIN service_requests sr ON ur.service_request_id = sr.id
-        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.client_id
-      ),
-      review_count_client = (
-        SELECT COUNT(*)
-        FROM user_ratings ur
-        JOIN service_requests sr ON ur.service_request_id = sr.id
-        WHERE ur.rated_id = NEW.rated_id AND ur.rated_id = sr.client_id
-      ),
+      rating_avg   = (SELECT COALESCE(AVG(rating), 0) FROM public.user_ratings WHERE rated_id = NEW.rated_id AND moderation_status = 'approved'),
+      review_count = (SELECT COUNT(*) FROM public.user_ratings WHERE rated_id = NEW.rated_id AND moderation_status = 'approved'),
       updated_at   = NOW()
     WHERE id = NEW.rated_id;
   END IF;
-
-  -- Mantener rating general por compatibilidad
-  UPDATE profiles
-  SET
-    rating_avg   = (SELECT COALESCE(AVG(rating), 0) FROM user_ratings WHERE rated_id = NEW.rated_id),
-    review_count = (SELECT COUNT(*) FROM user_ratings WHERE rated_id = NEW.rated_id),
-    updated_at   = NOW()
-  WHERE id = NEW.rated_id;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE TRIGGER on_rating_inserted
-  AFTER INSERT ON user_ratings
+  AFTER INSERT OR UPDATE ON public.user_ratings
   FOR EACH ROW EXECUTE PROCEDURE public.update_profile_rating();
 
 -- ============================================================
