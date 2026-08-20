@@ -56,6 +56,16 @@ class AppointmentDetailScreen extends ConsumerWidget {
             return const Center(child: Text('El turno solicitado no existe.'));
           }
 
+          final isBlockedDay = appointment.notes != null && appointment.notes!.startsWith('[BLOCKED_DAY]');
+          if (isBlockedDay) {
+            return _buildBlockedDayDetailView(context, ref, appointment, isDark, currentUserId);
+          }
+
+          final isReminder = appointment.notes != null && appointment.notes!.startsWith('[PERSONAL_REMINDER]');
+          if (isReminder) {
+            return _buildReminderDetailView(context, ref, appointment, isDark, currentUserId);
+          }
+
           final isProfessional = appointment.professionalId == currentUserId;
           final otherUserId = isProfessional
               ? appointment.customerId
@@ -795,6 +805,56 @@ class AppointmentDetailScreen extends ConsumerWidget {
       }
     }
 
+    Future<void> confirmCompletion() async {
+      try {
+        await repository.confirmAppointmentCompletion(appointment.id, isProfessional: isProfessional);
+
+        // Invalidate providers to trigger rebuild of detailed screen & general agenda list
+        ref.invalidate(appointmentByIdProvider(appointment.id));
+        ref.invalidate(userAppointmentsProvider);
+
+        if (currentUserId != null && otherUserId != null) {
+          final conversation = await ref
+              .read(chatRepositoryProvider)
+              .getOrCreateConversation(currentUserId, otherUserId);
+
+          final updatedAppointment = await repository.getAppointmentById(appointment.id);
+          final isBothCompleted = updatedAppointment?.status == AppointmentStatus.completed;
+
+          final String messageContent;
+          if (isBothCompleted) {
+            messageContent = '¡El trabajo fue completado por ambas partes! Ya podés dejar tu calificación.';
+          } else {
+            messageContent = isProfessional
+                ? 'El profesional confirmó la finalización del trabajo (esperando confirmación del cliente).'
+                : 'El cliente confirmó la finalización del trabajo (esperando confirmación del profesional).';
+          }
+
+          await ref
+              .read(chatRepositoryProvider)
+              .sendMessage(conversation.id, currentUserId, messageContent);
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Finalización confirmada correctamente.'),
+              backgroundColor: Colors.black87,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al confirmar finalización: $e'),
+              backgroundColor: Colors.red[800],
+            ),
+          );
+        }
+      }
+    }
+
     if (appointment.status == AppointmentStatus.pending || appointment.status == AppointmentStatus.proposed) {
       final showAcceptReject = appointment.status == AppointmentStatus.proposed ? !isProfessional : isProfessional;
 
@@ -870,16 +930,41 @@ class AppointmentDetailScreen extends ConsumerWidget {
     }
 
     if (appointment.status == AppointmentStatus.accepted) {
-      if (isProfessional) {
-        return Column(
-          children: [
+      final hasIConfirmed = isProfessional ? appointment.providerConfirmedCompletion : appointment.clientConfirmedCompletion;
+      final hasOtherConfirmed = isProfessional ? appointment.clientConfirmedCompletion : appointment.providerConfirmedCompletion;
+
+      return Column(
+        children: [
+          if (hasIConfirmed)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Colors.green),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      hasOtherConfirmed
+                          ? 'Finalización confirmada por ambos.'
+                          : 'Confirmaste la finalización. Esperando confirmación del ${isProfessional ? 'cliente' : 'profesional'}.',
+                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => updateStatus(
-                  AppointmentStatus.completed,
-                  '¡Trabajo marcado como Completado! Felicitaciones.',
-                ),
+                onPressed: confirmCompletion,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green[700],
                   foregroundColor: Colors.white,
@@ -888,60 +973,36 @@ class AppointmentDetailScreen extends ConsumerWidget {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text(
-                  'Marcar Completado',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                child: Text(
+                  isProfessional ? 'Marcar Completado' : 'Confirmar Finalización',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => updateStatus(
-                  AppointmentStatus.cancelled,
-                  'El turno ha sido cancelado.',
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Cancelar Turno',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => updateStatus(
+                AppointmentStatus.cancelled,
+                'El turno ha sido cancelado.',
               ),
-            ),
-          ],
-        );
-      } else {
-        // Client can cancel accepted shifts
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => updateStatus(
-              AppointmentStatus.cancelled,
-              'El turno ha sido cancelado.',
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: const Text(
-              'Cancelar Turno',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              child: const Text(
+                'Cancelar Turno',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-        );
-      }
+        ],
+      );
     }
 
     return const SizedBox();
@@ -1023,6 +1084,372 @@ class AppointmentDetailScreen extends ConsumerWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBlockedDayDetailView(
+    BuildContext context,
+    WidgetRef ref,
+    Appointment appointment,
+    bool isDark,
+    String? currentUserId,
+  ) {
+    final reason = appointment.notes!.replaceFirst('[BLOCKED_DAY]', '').trim();
+    final displayReason = reason.isNotEmpty ? reason : 'Feriado / Día no laborable';
+    final dateStr = DateFormat('EEEE, d \'de\' MMMM \'de\' yyyy', 'es_ES').format(appointment.scheduledAt);
+    final isProfessional = appointment.professionalId == currentUserId;
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.red.withOpacity(0.12) : Colors.red.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.3), width: 2),
+                ),
+                child: const Icon(
+                  Icons.block,
+                  size: 64,
+                  color: Colors.redAccent,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Día Bloqueado',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Establecido como no laborable',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              Card(
+                color: isDark ? const Color(0xFF1E222B) : Colors.grey[100],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_month, color: isDark ? Colors.white70 : Colors.black54),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Fecha',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  dateStr,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Divider(),
+                      ),
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, color: isDark ? Colors.white70 : Colors.black54),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Motivo',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  displayReason,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              if (isProfessional) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            backgroundColor: isDark ? const Color(0xFF1E2E3D) : Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: const Text('Habilitar Día', style: TextStyle(fontWeight: FontWeight.bold)),
+                            content: const Text('¿Estás seguro de que quieres habilitar este día? Volverá a estar disponible para recibir turnos de tus clientes.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Habilitar'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (confirmed == true) {
+                        try {
+                          await ref.read(appointmentRepositoryProvider).deleteAppointment(appointment.id);
+                          ref.invalidate(userAppointmentsProvider);
+                          if (context.mounted) {
+                            context.pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Día habilitado con éxito'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al habilitar día: $e'), backgroundColor: Colors.redAccent),
+                            );
+                          }
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.lock_open_rounded),
+                    label: const Text('Habilitar Día / Eliminar Bloqueo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReminderDetailView(
+    BuildContext context,
+    WidgetRef ref,
+    Appointment appointment,
+    bool isDark,
+    String? currentUserId,
+  ) {
+    final note = appointment.notes!.replaceFirst('[PERSONAL_REMINDER]', '').trim();
+    final displayNote = note.isNotEmpty ? note : 'Sin indicaciones';
+    final dateStr = DateFormat('EEEE, d \'de\' MMMM \'de\' yyyy', 'es_ES').format(appointment.scheduledAt);
+    final timeStr = DateFormat('HH:mm').format(appointment.scheduledAt);
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.purple.withOpacity(0.12) : Colors.purple.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.purpleAccent.withOpacity(0.3), width: 2),
+                ),
+                child: const Icon(
+                  Icons.bookmark_added_outlined,
+                  size: 64,
+                  color: Colors.purpleAccent,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Recordatorio Personal',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              Card(
+                color: isDark ? const Color(0xFF1E222B) : Colors.grey[100],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_month, color: isDark ? Colors.white70 : Colors.black54),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Fecha y Hora',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$dateStr a las $timeStr hs',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Divider(),
+                      ),
+                      Row(
+                        children: [
+                          Icon(Icons.notes, color: isDark ? Colors.white70 : Colors.black54),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Indicaciones / Notas',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  displayNote,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          backgroundColor: isDark ? const Color(0xFF1E2E3D) : Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: const Text('Eliminar Recordatorio', style: TextStyle(fontWeight: FontWeight.bold)),
+                          content: const Text('¿Estás seguro de que quieres eliminar este recordatorio personal?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Eliminar'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (confirmed == true) {
+                      try {
+                        await ref.read(appointmentRepositoryProvider).deleteAppointment(appointment.id);
+                        ref.invalidate(userAppointmentsProvider);
+                        if (context.mounted) {
+                          context.pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Recordatorio eliminado con éxito'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error al eliminar recordatorio: $e'), backgroundColor: Colors.redAccent),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Eliminar Recordatorio', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
