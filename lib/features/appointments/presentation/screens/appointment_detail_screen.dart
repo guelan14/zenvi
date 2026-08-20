@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:zenvi/core/theme/zervi_theme.dart';
 import 'package:zenvi/features/appointments/domain/models/appointment.dart';
 import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
+import 'package:zenvi/features/appointments/domain/models/rating.dart';
+import 'package:uuid/uuid.dart';
 import 'package:zenvi/features/auth/domain/providers/auth_provider.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'package:zenvi/shared/domain/models/profile.dart';
@@ -1005,6 +1007,80 @@ class AppointmentDetailScreen extends ConsumerWidget {
       );
     }
 
+    if (appointment.status == AppointmentStatus.completed) {
+      if (currentUserId == null) return const SizedBox();
+
+      final ratingAsync = ref.watch(ratingForAppointmentAndRaterProvider((appointmentId: appointment.id, raterId: currentUserId)));
+
+      return ratingAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        error: (err, _) => Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text('Error al cargar calificación: $err', style: const TextStyle(color: Colors.red)),
+        ),
+        data: (myRating) {
+          if (myRating != null) {
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Calificaste con ${myRating.rating} estrellas',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  if (myRating.comment != null && myRating.comment!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '"${myRating.comment}"',
+                      style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.black54, fontSize: 13),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
+
+          return SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showRatingDialog(context, ref, appointment, currentUserId),
+              icon: const Icon(Icons.rate_review_outlined),
+              label: Text(
+                isProfessional ? 'Calificar Cliente' : 'Calificar Profesional',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     return const SizedBox();
   }
 
@@ -1452,6 +1528,171 @@ class AppointmentDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showRatingDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Appointment appointment,
+    String currentUserId,
+  ) {
+    int selectedRating = 5;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              title: Center(
+                child: Text(
+                  'Dejá tu Calificación',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    // Stars selector
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        final starValue = index + 1;
+                        final isSelected = starValue <= selectedRating;
+                        return IconButton(
+                          icon: Icon(
+                            isSelected ? Icons.star_rounded : Icons.star_border_rounded,
+                            color: isSelected ? Colors.amber : Colors.black26,
+                            size: 40,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              selectedRating = starValue;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    // Feedback text field
+                    TextField(
+                      controller: commentController,
+                      maxLines: 3,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      decoration: InputDecoration(
+                        hintText: 'Contanos cómo fue el servicio...',
+                        hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
+                        filled: true,
+                        fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF1F1F1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              actions: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white54 : Colors.black54,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final ratingId = const Uuid().v4();
+                          final ratedId = currentUserId == appointment.customerId
+                              ? appointment.professionalId
+                              : appointment.customerId!;
+
+                          final newRating = Rating(
+                            id: ratingId,
+                            appointmentId: appointment.id,
+                            ratedId: ratedId,
+                            raterId: currentUserId,
+                            rating: selectedRating,
+                            comment: commentController.text.trim().isNotEmpty
+                                ? commentController.text.trim()
+                                : null,
+                            createdAt: DateTime.now(),
+                          );
+
+                          try {
+                            await ref.read(ratingRepositoryProvider).submitRating(newRating);
+
+                            // Invalidate ratings check
+                            ref.invalidate(ratingForAppointmentAndRaterProvider((
+                              appointmentId: appointment.id,
+                              raterId: currentUserId
+                            )));
+                            
+                            // Also refresh ratings list in profile screen
+                            ref.invalidate(ratingsForUserProvider(ratedId));
+                            // Invalidate profile to show new stats
+                            ref.invalidate(profileProvider(ratedId));
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('¡Gracias por tu calificación!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al enviar calificación: $e'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                        ),
+                        child: const Text('Enviar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

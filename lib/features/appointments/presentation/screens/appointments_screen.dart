@@ -69,17 +69,6 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.today),
-            onPressed: () {
-              setState(() {
-                _focusedDay = DateTime.now();
-                _selectedDay = _focusedDay;
-              });
-            },
-          ),
-        ],
       ),
       body: appointmentsAsync.when(
         loading: () => const ZerviAgendaSkeleton(),
@@ -276,6 +265,82 @@ class _AppointmentsScreenState extends ConsumerState<AppointmentsScreen> {
   }
 
   Widget _buildEventCard(Appointment event, bool isMyWork) {
+    final isReminder = event.notes != null && event.notes!.startsWith('[PERSONAL_REMINDER]');
+    if (isReminder) {
+      final userNote = event.notes!.replaceFirst('[PERSONAL_REMINDER]', '').trim();
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final startTimeStr = DateFormat('HH:mm').format(event.scheduledAt);
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.purple.withOpacity(0.08) : Colors.purple.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              context.push('/appointment/${event.id}');
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.purpleAccent.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.bookmark_added_outlined, color: Colors.purpleAccent),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recordatorio Personal',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: isDark ? Colors.purple[300] : Colors.purple[900],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          userNote.isNotEmpty ? userNote : 'Sin notas',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Hora: $startTimeStr hs',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white30 : Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: isDark ? Colors.white30 : Colors.black38,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final startTimeStr = DateFormat('HH:mm').format(event.scheduledAt);
     final color = isMyWork ? Colors.blue : Colors.green;
     final title = isMyWork ? 'Trabajo Programado' : 'Turno Reservado';
@@ -439,6 +504,22 @@ class _CreateAppointmentBottomSheetState
   final notesController = TextEditingController();
   final priceController = TextEditingController();
 
+  String? _fallbackListingId;
+  bool _isPersonalReminder = false;
+
+  Future<void> _loadFallbackListing() async {
+    try {
+      final res = await ref.read(supabaseClientProvider).from('listings').select('id').limit(1);
+      if (res != null && res.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _fallbackListingId = res[0]['id'] as String;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
   bool isLoadingContacts = false;
   List<Map<String, String>> resolvedContacts = [];
 
@@ -452,6 +533,9 @@ class _CreateAppointmentBottomSheetState
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFallbackListing();
+    });
   }
 
   @override
@@ -461,6 +545,12 @@ class _CreateAppointmentBottomSheetState
     final userMode = ref.watch(userModeProvider);
     final conversations =
         ref.watch(userConversationsStreamProvider).value ?? [];
+
+    final bool hasContacts = userMode == UserMode.professional
+        ? true
+        : (conversations.isNotEmpty || resolvedContacts.isNotEmpty);
+    final bool forceReminder = userMode == UserMode.client && !hasContacts;
+    final bool isPersonalReminder = forceReminder || _isPersonalReminder;
 
     if (currentUserId == null) {
       return Container(
@@ -579,12 +669,17 @@ class _CreateAppointmentBottomSheetState
       });
     }
 
+    final availableHeight = MediaQuery.of(context).size.height - MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: availableHeight * 0.85,
+      ),
       padding: EdgeInsets.only(
         left: 24,
         right: 24,
         top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E222B) : Colors.white,
@@ -629,431 +724,518 @@ class _CreateAppointmentBottomSheetState
             ),
           ),
           const SizedBox(height: 24),
-          // Selección de Contacto y Publicación en orden según UserMode
-          if (userMode == UserMode.professional) ...[
-            // 1. Seleccionar Cliente
-            Text(
-              'Seleccionar Cliente',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (itemsList.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  'No tenés clientes registrados aún.',
-                  style: TextStyle(
-                    color: isDark ? Colors.white30 : Colors.black38,
-                    fontSize: 13,
-                  ),
-                ),
-              )
-            else
-              DropdownButtonFormField<String>(
-                value: selectedContactId,
-                dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: isDark
-                      ? const Color(0xFF14171E)
-                      : const Color(0xFFF5F5F5),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-                items: itemsList.map((c) {
-                  return DropdownMenuItem<String>(
-                    value: c['value'],
-                    child: Text(c['name']),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedContactId = val;
-                    localListings = [];
-                    selectedListingId = null;
-                  });
-                },
-              ),
-            const SizedBox(height: 20),
-
-            // 2. Seleccionar Publicación / Servicio
-            if (selectedContactId != null) ...[
-              Text(
-                'Servicio / Publicación',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (isLoadingListings)
-                const Center(child: CircularProgressIndicator())
-              else if (localListings.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Text(
-                    'No tenés publicaciones activas.',
-                    style: TextStyle(
-                      color: isDark ? Colors.white30 : Colors.black38,
-                      fontSize: 13,
-                    ),
-                  ),
-                )
-              else
-                DropdownButtonFormField<String>(
-                  value: selectedListingId,
-                  dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: isDark
-                        ? const Color(0xFF14171E)
-                        : const Color(0xFFF5F5F5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                  items: localListings.map((l) {
-                    return DropdownMenuItem<String>(
-                      value: l.id,
-                      child: Text(l.title, overflow: TextOverflow.ellipsis),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      selectedListingId = val;
-                      final selectedList = localListings.firstWhere(
-                        (l) => l.id == val,
-                      );
-                      if (selectedList.price != null) {
-                        priceController.text = selectedList.price!
-                            .toStringAsFixed(0);
-                      }
-                    });
-                  },
-                ),
-              const SizedBox(height: 20),
-            ],
-          ] else ...[
-            // CLIENT MODE:
-            // 1. Seleccionar Servicio primero
-            Text(
-              'Servicio / Publicación',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (isLoadingContacts)
-              const Center(child: CircularProgressIndicator())
-            else if (localListings.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  'No hay servicios disponibles de tus profesionales de chat.',
-                  style: TextStyle(
-                    color: isDark ? Colors.white30 : Colors.black38,
-                    fontSize: 13,
-                  ),
-                ),
-              )
-            else
-              DropdownButtonFormField<String>(
-                value: selectedListingId,
-                dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: isDark
-                      ? const Color(0xFF14171E)
-                      : const Color(0xFFF5F5F5),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-                items: localListings.map((l) {
-                  final profName = professionalNamesMap[l.authorId] ?? 'Profesional';
-                  return DropdownMenuItem<String>(
-                    value: l.id,
-                    child: Text('${l.title} ($profName)', overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    selectedListingId = val;
-                    final selectedList = localListings.firstWhere(
-                      (l) => l.id == val,
-                    );
-                    selectedContactId = selectedList.authorId;
-                    if (selectedList.price != null) {
-                      priceController.text = selectedList.price!
-                          .toStringAsFixed(0);
-                    }
-                  });
-                },
-              ),
-            const SizedBox(height: 20),
-
-            // 2. Mostrar Profesional asociado
-            if (selectedContactId != null) ...[
-              Text(
-                'Profesional',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      color: isDark ? Colors.white54 : Colors.black54,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        professionalNamesMap[selectedContactId] ?? 'Profesional',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
+          
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (userMode == UserMode.client) ...[
+                    if (hasContacts) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tipo de Cita',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          DropdownButton<bool>(
+                            value: isPersonalReminder,
+                            dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            underline: const SizedBox(),
+                            items: const [
+                              DropdownMenuItem(value: false, child: Text('Turno con Profesional')),
+                              DropdownMenuItem(value: true, child: Text('Recordatorio Personal')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _isPersonalReminder = val;
+                                  if (_isPersonalReminder) {
+                                    selectedListingId = null;
+                                    selectedContactId = null;
+                                    _selectedTime = null;
+                                  } else {
+                                    if (localListings.isNotEmpty) {
+                                      selectedListingId = localListings.first.id;
+                                      selectedContactId = localListings.first.authorId;
+                                    }
+                                  }
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: Colors.orange),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No tenés profesionales agregados ni chats activos. Solo podés crear Recordatorios Personales.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.orange[200] : Colors.orange[800],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                    ],
                   ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ],
 
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final date = await _showCustomDatePicker(
-                      context: context,
-                      initialDate: _selectedDate ?? DateTime.now(),
-                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (date != null) {
-                      setState(() => _selectedDate = date);
-                    }
-                  },
-                  icon: Icon(
-                    Icons.calendar_today_rounded,
-                    size: 18,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                  ),
-                  label: Text(
-                    _selectedDate == null
-                        ? 'Fecha'
-                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final time = await _showCustomTimePicker(
-                      context: context,
-                      initialTime: _selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
-                    );
-                    if (time != null) {
-                      setState(() => _selectedTime = time);
-                    }
-                  },
-                  icon: Icon(
-                    Icons.access_time_rounded,
-                    size: 18,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                  ),
-                  label: Text(
-                    _selectedTime == null
-                        ? 'Hora'
-                        : _selectedTime!.format(context),
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Precio
-          if (userMode == UserMode.professional) ...[
-            Text(
-              'Monto / Presupuesto (\$)',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'Ej: 15000',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? Colors.white30 : Colors.black38,
-                ),
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF14171E)
-                    : const Color(0xFFF5F5F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 20),
-          ] else ...[
-            // Para el cliente, mostramos el precio del servicio de forma informativa
-            if (selectedListingId != null) ...[
-              Text(
-                'Precio del Servicio',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.sell_outlined,
-                      color: isDark ? Colors.white54 : Colors.black54,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
+                  if (userMode == UserMode.professional) ...[
+                    // 1. Seleccionar Cliente
                     Text(
-                      priceController.text.isNotEmpty && priceController.text != '0'
-                          ? '\$${priceController.text}'
-                          : 'A coordinar',
+                      'Seleccionar Cliente',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (itemsList.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          'No tenés clientes registrados aún.',
+                          style: TextStyle(
+                            color: isDark ? Colors.white30 : Colors.black38,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        value: selectedContactId,
+                        dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: isDark
+                              ? const Color(0xFF14171E)
+                              : const Color(0xFFF5F5F5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        items: itemsList.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item['value'],
+                            child: Text(item['name']),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedContactId = val;
+                          });
+                        },
+                      ),
+                    const SizedBox(height: 20),
+
+                    // 2. Seleccionar Publicación / Servicio
+                    if (selectedContactId != null) ...[
+                      Text(
+                        'Servicio / Publicación',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (isLoadingListings)
+                        const Center(child: CircularProgressIndicator())
+                      else if (localListings.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: Text(
+                            'No tenés publicaciones activas.',
+                            style: TextStyle(
+                              color: isDark ? Colors.white30 : Colors.black38,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          value: selectedListingId,
+                          dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: isDark
+                                ? const Color(0xFF14171E)
+                                : const Color(0xFFF5F5F5),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          items: localListings.map((l) {
+                            return DropdownMenuItem<String>(
+                              value: l.id,
+                              child: Text(l.title),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              selectedListingId = val;
+                              final selectedList = localListings.firstWhere(
+                                (l) => l.id == val,
+                              );
+                              if (selectedList.price != null) {
+                                priceController.text = selectedList.price!
+                                    .toStringAsFixed(0);
+                              }
+                            });
+                          },
+                        ),
+                      const SizedBox(height: 20),
+                    ],
+                  ] else if (!isPersonalReminder) ...[
+                    // CLIENT MODE:
+                    // 1. Seleccionar Servicio primero
+                    Text(
+                      'Servicio / Publicación',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (isLoadingContacts)
+                      const Center(child: CircularProgressIndicator())
+                    else if (localListings.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                          'No hay servicios disponibles de tus profesionales de chat.',
+                          style: TextStyle(
+                            color: isDark ? Colors.white30 : Colors.black38,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        value: selectedListingId,
+                        dropdownColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: isDark
+                              ? const Color(0xFF14171E)
+                              : const Color(0xFFF5F5F5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        items: localListings.map((l) {
+                          final profName = professionalNamesMap[l.authorId] ?? 'Profesional';
+                          return DropdownMenuItem<String>(
+                            value: l.id,
+                            child: Text('${l.title} ($profName)'),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedListingId = val;
+                            final selectedList = localListings.firstWhere(
+                              (l) => l.id == val,
+                            );
+                            selectedContactId = selectedList.authorId;
+                            if (selectedList.price != null) {
+                              priceController.text = selectedList.price!
+                                  .toStringAsFixed(0);
+                            }
+                          });
+                        },
+                      ),
+                    const SizedBox(height: 20),
+
+                    // 2. Mostrar Profesional asociado
+                    if (selectedContactId != null) ...[
+                      Text(
+                        'Profesional',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF14171E)
+                              : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline_rounded,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                professionalNamesMap[selectedContactId] ?? 'Profesional',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
+
+                  // 3. Seleccionar Fecha y Hora
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final date = await _showCustomDatePicker(
+                              context: context,
+                              initialDate: _selectedDate ?? DateTime.now(),
+                              firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                            );
+                            if (date != null) {
+                              setState(() => _selectedDate = date);
+                            }
+                          },
+                          icon: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 18,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          label: Text(
+                            _selectedDate == null
+                                ? 'Fecha'
+                                : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (isPersonalReminder || selectedContactId != null) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final time = await _showCustomTimePicker(
+                                context: context,
+                                initialTime: _selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
+                              );
+                              if (time != null) {
+                                setState(() => _selectedTime = time);
+                              }
+                            },
+                            icon: Icon(
+                              Icons.access_time_rounded,
+                              size: 18,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                            label: Text(
+                              _selectedTime == null
+                                  ? 'Hora'
+                                  : _selectedTime!.format(context),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Precio
+                  if (userMode == UserMode.professional) ...[
+                    Text(
+                      'Monto / Presupuesto (\$)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: 'Ej: 15000',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white30 : Colors.black38,
+                        ),
+                        filled: true,
+                        fillColor: isDark
+                            ? const Color(0xFF14171E)
+                            : const Color(0xFFF5F5F5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                      style: TextStyle(
+                        fontSize: 14,
                         color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
+                    const SizedBox(height: 20),
+                  ] else if (!isPersonalReminder) ...[
+                    // Para el cliente, mostramos el precio del servicio de forma informativa
+                    if (selectedListingId != null) ...[
+                      Text(
+                        'Precio del Servicio',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.sell_outlined,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              priceController.text.isNotEmpty && priceController.text != '0'
+                                  ? '\$${priceController.text}'
+                                  : 'A coordinar',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                   ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ],
 
-          // Notas
-          Text(
-            'Notas o indicaciones especiales',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white70 : Colors.black87,
+                  // Notas
+                  Text(
+                    'Notas o indicaciones especiales',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Detallá indicaciones o aclaraciones para la cita...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white30 : Colors.black38,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? const Color(0xFF14171E)
+                          : const Color(0xFFF5F5F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: notesController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: 'Detallá indicaciones o aclaraciones para la cita...',
-              hintStyle: TextStyle(
-                fontSize: 13,
-                color: isDark ? Colors.white30 : Colors.black38,
-              ),
-              filled: true,
-              fillColor: isDark
-                  ? const Color(0xFF14171E)
-                  : const Color(0xFFF5F5F5),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.all(16),
-            ),
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 28),
-
+          
+          const SizedBox(height: 16),
           // Botón Confirmar
           SizedBox(
             width: double.infinity,
@@ -1062,8 +1244,9 @@ class _CreateAppointmentBottomSheetState
               onPressed:
                   (_selectedDate == null ||
                       _selectedTime == null ||
-                      selectedListingId == null ||
-                      selectedContactId == null ||
+                      (isPersonalReminder 
+                          ? _fallbackListingId == null 
+                          : (selectedListingId == null || selectedContactId == null)) ||
                       _isSaving)
                   ? null
                   : () async {
@@ -1077,40 +1260,45 @@ class _CreateAppointmentBottomSheetState
                         _selectedTime!.minute,
                       );
 
-                      final finalPrice =
-                          double.tryParse(priceController.text.trim()) ?? 0.0;
+                      final finalPrice = isPersonalReminder 
+                          ? 0.0 
+                          : (double.tryParse(priceController.text.trim()) ?? 0.0);
 
                       String? selectedProfileId;
                       String? selectedCustomClientId;
 
-                      if (userMode == UserMode.professional && selectedContactId != null) {
-                        final parts = selectedContactId!.split('|');
-                        selectedProfileId = parts[0].isNotEmpty ? parts[0] : null;
-                        selectedCustomClientId = parts[1].isNotEmpty ? parts[1] : null;
-                      } else {
-                        selectedProfileId = selectedContactId;
+                      if (!isPersonalReminder) {
+                        if (userMode == UserMode.professional && selectedContactId != null) {
+                          final parts = selectedContactId!.split('|');
+                          selectedProfileId = parts[0].isNotEmpty ? parts[0] : null;
+                          selectedCustomClientId = parts[1].isNotEmpty ? parts[1] : null;
+                        } else {
+                          selectedProfileId = selectedContactId;
+                        }
                       }
 
                       final appointment = Appointment(
                         id: const Uuid().v4(),
-                        listingId: selectedListingId!,
-                        customerId: userMode == UserMode.professional
-                            ? selectedProfileId
-                            : currentUserId,
-                        customClientId: userMode == UserMode.professional
-                            ? selectedCustomClientId
-                            : null,
-                        professionalId: userMode == UserMode.professional
-                            ? currentUserId
-                            : selectedProfileId!,
+                        listingId: isPersonalReminder 
+                            ? (_fallbackListingId ?? '') 
+                            : selectedListingId!,
+                        customerId: isPersonalReminder 
+                            ? currentUserId 
+                            : (userMode == UserMode.professional ? selectedProfileId : currentUserId),
+                        customClientId: isPersonalReminder 
+                            ? null 
+                            : (userMode == UserMode.professional ? selectedCustomClientId : null),
+                        professionalId: isPersonalReminder 
+                            ? currentUserId 
+                            : (userMode == UserMode.professional ? currentUserId : selectedProfileId!),
                         scheduledAt: start,
                         price: finalPrice > 0 ? finalPrice : null,
-                        status: userMode == UserMode.professional
-                            ? AppointmentStatus.proposed
-                            : AppointmentStatus.pending,
-                        notes: notesController.text.trim().isNotEmpty
-                            ? notesController.text.trim()
-                            : null,
+                        status: isPersonalReminder 
+                            ? AppointmentStatus.accepted 
+                            : (userMode == UserMode.professional ? AppointmentStatus.proposed : AppointmentStatus.pending),
+                        notes: isPersonalReminder 
+                            ? '[PERSONAL_REMINDER] ${notesController.text.trim()}'
+                            : (notesController.text.trim().isNotEmpty ? notesController.text.trim() : null),
                         createdAt: DateTime.now(),
                       );
 
@@ -1119,18 +1307,17 @@ class _CreateAppointmentBottomSheetState
                             .read(appointmentRepositoryProvider)
                             .createAppointment(appointment);
 
-                        // Enviar mensaje al chat si el cliente tiene un perfil de chat registrado
-                        final dateStr = DateFormat('dd/MM/yyyy').format(start);
-                        final timeStr = DateFormat('HH:mm').format(start);
-                        final priceStr = finalPrice > 0
-                            ? ' por \$${finalPrice.toStringAsFixed(0)}'
-                            : '';
+                        if (!isPersonalReminder && selectedProfileId != null) {
+                          final dateStr = DateFormat('dd/MM/yyyy').format(start);
+                          final timeStr = DateFormat('HH:mm').format(start);
+                          final priceStr = finalPrice > 0
+                              ? ' por \$${finalPrice.toStringAsFixed(0)}'
+                              : '';
 
-                        final messageContent = userMode == UserMode.professional
-                            ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
-                            : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
+                          final messageContent = userMode == UserMode.professional
+                              ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
+                              : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
 
-                        if (selectedProfileId != null) {
                           final conversation = ref
                               .read(
                                 currentConversationProvider(selectedProfileId),
@@ -1152,9 +1339,11 @@ class _CreateAppointmentBottomSheetState
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                userMode == UserMode.professional
-                                    ? 'Propuesta de turno enviada con éxito'
-                                    : 'Turno solicitado con éxito',
+                                isPersonalReminder
+                                    ? 'Recordatorio personal guardado con éxito'
+                                    : (userMode == UserMode.professional
+                                        ? 'Propuesta de turno enviada con éxito'
+                                        : 'Turno solicitado con éxito'),
                               ),
                               backgroundColor: Colors.green,
                             ),
@@ -1186,9 +1375,11 @@ class _CreateAppointmentBottomSheetState
               child: _isSaving
                   ? const CircularProgressIndicator()
                   : Text(
-                      userMode == UserMode.professional
-                          ? 'Enviar Propuesta'
-                          : 'Enviar Solicitud',
+                      isPersonalReminder
+                          ? 'Guardar Recordatorio'
+                          : (userMode == UserMode.professional
+                              ? 'Enviar Propuesta'
+                              : 'Enviar Solicitud'),
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,

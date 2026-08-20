@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -346,14 +348,20 @@ class ListingDetailScreen extends ConsumerWidget {
                           target: LatLng(listing.lat!, listing.lng!),
                           zoom: 15.0,
                         ),
-                        zoomControlsEnabled: false,
-                        myLocationButtonEnabled: false,
-                        compassEnabled: false,
-                        mapToolbarEnabled: false,
-                        scrollGesturesEnabled: false,
-                        zoomGesturesEnabled: false,
-                        tiltGesturesEnabled: false,
-                        rotateGesturesEnabled: false,
+                        zoomControlsEnabled: true,
+                        myLocationButtonEnabled: true,
+                        myLocationEnabled: true,
+                        compassEnabled: true,
+                        mapToolbarEnabled: true,
+                        scrollGesturesEnabled: true,
+                        zoomGesturesEnabled: true,
+                        tiltGesturesEnabled: true,
+                        rotateGesturesEnabled: true,
+                        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                          Factory<OneSequenceGestureRecognizer>(
+                            () => EagerGestureRecognizer(),
+                          ),
+                        },
                         onMapCreated: (controller) {
                           controller.setMapStyle(isDark ? googleMapDarkStyle : googleMapLightStyle);
                         },

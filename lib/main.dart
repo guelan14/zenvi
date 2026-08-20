@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:zenvi/features/profile/domain/providers/profile_providers.dart';
 import 'core/theme/zervi_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/supabase/supabase_config.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Load environment variables
   await dotenv.load(fileName: ".env");
+  
+  // Initialize date formatting for Spanish
+  await initializeDateFormatting('es_ES', null);
   
   // Initialize Supabase (Catch errors if URL/Key not set)
   try {
@@ -41,6 +46,15 @@ class ZerviApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''),
+        Locale('es', ''),
+      ],
     );
   }
 }

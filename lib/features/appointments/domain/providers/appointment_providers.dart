@@ -18,6 +18,10 @@ final ratingsForUserProvider = FutureProvider.family<List<Rating>, String>((ref,
   return ref.watch(ratingRepositoryProvider).getRatingsForUser(userId);
 });
 
+final ratingForAppointmentAndRaterProvider = FutureProvider.family<Rating?, ({String appointmentId, String raterId})>((ref, arg) async {
+  return ref.watch(ratingRepositoryProvider).getRatingForAppointmentAndRater(arg.appointmentId, arg.raterId);
+});
+
 final userAppointmentsProvider = FutureProvider<List<Appointment>>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return [];

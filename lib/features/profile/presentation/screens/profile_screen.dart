@@ -8,6 +8,12 @@ import 'package:zenvi/shared/widgets/role_switch_button.dart';
 import 'package:zenvi/shared/widgets/zervi_card.dart';
 import 'package:zenvi/shared/widgets/zervi_skeleton.dart';
 import 'package:zenvi/features/home/domain/models/listing.dart';
+import 'package:zenvi/shared/domain/models/profile.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zenvi/core/supabase/supabase_config.dart';
+import 'package:intl/intl.dart';
+import 'package:zenvi/features/appointments/domain/providers/appointment_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final String profileId;
@@ -231,7 +237,7 @@ class ProfileScreen extends ConsumerWidget {
                           const _SectionTitle('Sobre mí'),
                           if (isMe)
                             TextButton.icon(
-                              onPressed: () {},
+                              onPressed: () => _showEditProfileDialog(context, ref, profile),
                               icon: const Icon(Icons.edit_outlined, size: 16),
                               label: const Text('Editar'),
                               style: TextButton.styleFrom(
@@ -254,27 +260,191 @@ class ProfileScreen extends ConsumerWidget {
                       const SizedBox(height: 32),
 
                       // ─── Listings ─────────────────────────────────────────────
-                      _SectionTitle(
-                        isMe
-                            ? (userMode == UserMode.client ? 'Mis Pedidos publicados' : 'Mis Servicios publicados')
-                            : 'Servicios publicados',
-                      ),
-                      const SizedBox(height: 12),
                       listingsAsync.when(
                         data: (allListings) {
-                          final listings = allListings.where((l) {
-                            if (isMe) {
-                              final targetType = userMode == UserMode.client ? ListingType.job : ListingType.service;
-                              return l.type == targetType;
-                            }
-                            return l.type == ListingType.service;
-                          }).toList();
+                          final services = allListings.where((l) => l.type == ListingType.service).toList();
+                          final jobs = allListings.where((l) => l.type == ListingType.job).toList();
 
-                          if (listings.isEmpty) {
+                          final List<Listing> listings;
+                          final String titleText;
+                          final String emptyText;
+
+                          if (isMe) {
+                            if (userMode == UserMode.client) {
+                              listings = jobs;
+                              titleText = 'Mis Pedidos publicados';
+                              emptyText = 'No tenés pedidos publicados aún.';
+                            } else {
+                              listings = services;
+                              titleText = 'Mis Servicios publicados';
+                              emptyText = 'No tenés servicios publicados aún.';
+                            }
+                          } else {
+                            if (services.isNotEmpty) {
+                              listings = services;
+                              titleText = 'Servicios ofrecidos';
+                              emptyText = 'No hay servicios publicados aún.';
+                            } else {
+                              listings = jobs;
+                              titleText = 'Pedidos publicados';
+                              emptyText = 'No hay pedidos publicados aún.';
+                            }
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SectionTitle(titleText),
+                              const SizedBox(height: 12),
+                              if (listings.isEmpty)
+                                Text(
+                                  emptyText,
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white30 : Colors.black38,
+                                    fontSize: 14,
+                                  ),
+                                )
+                              else
+                                ...listings.map((listing) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: ZerviCard(
+                                    onTap: () => context.push('/listing/${listing.id}'),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      children: [
+                                        if (listing.images.isNotEmpty)
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(
+                                              listing.images.first,
+                                              width: 60,
+                                              height: 60,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        else
+                                          Container(
+                                            width: 60,
+                                            height: 60,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.image_outlined,
+                                              color: isDark ? Colors.white30 : Colors.black26,
+                                            ),
+                                          ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                listing.title,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 15,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.orange.withOpacity(0.1),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      (listing.category ?? 'Servicio').toUpperCase(),
+                                                      style: const TextStyle(
+                                                        color: Colors.orange,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                        letterSpacing: 0.5,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Icon(
+                                                    Icons.location_on_outlined,
+                                                    size: 10,
+                                                    color: isDark ? Colors.white30 : Colors.black26,
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Flexible(
+                                                    child: Text(
+                                                      listing.city ?? 'Posadas',
+                                                      style: TextStyle(
+                                                        color: isDark ? Colors.white30 : Colors.black26,
+                                                        fontSize: 10,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (listing.price != null)
+                                          Text(
+                                            '\$${listing.price!.toStringAsFixed(0)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.white : Colors.black87,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                )).toList(),
+                            ],
+                          );
+                        },
+                        loading: () => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _SectionTitle('Cargando...'),
+                            const SizedBox(height: 12),
+                            ...List.generate(
+                              2,
+                              (index) => const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: ZerviProfileListingSkeleton(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        error: (err, _) => Text('Error: $err'),
+                      ),
+
+                      const SizedBox(height: 24),
+                      const Divider(height: 1),
+                      const SizedBox(height: 24),
+
+                      // ─── Calificaciones y Reseñas ──────────────────────────────────────
+                      const _SectionTitle('Calificaciones y Reseñas'),
+                      const SizedBox(height: 12),
+                      ref.watch(ratingsForUserProvider(profile.id)).when(
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        error: (err, _) => Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text('Error al cargar reseñas: $err', style: const TextStyle(color: Colors.red)),
+                        ),
+                        data: (ratings) {
+                          if (ratings.isEmpty) {
                             return Text(
-                              isMe
-                                  ? (userMode == UserMode.client ? 'No tenés pedidos publicados aún.' : 'No tenés servicios publicados aún.')
-                                  : 'No hay servicios publicados aún.',
+                              'Aún no tiene calificaciones.',
                               style: TextStyle(
                                 color: isDark ? Colors.white30 : Colors.black38,
                                 fontSize: 14,
@@ -283,136 +453,56 @@ class ProfileScreen extends ConsumerWidget {
                           }
 
                           return Column(
-                            children: listings
-                                .map(
-                                  (listing) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: ZerviCard(
-                                      onTap: () => context.push(
-                                        '/listing/${listing.id}',
-                                      ),
-                                      padding: const EdgeInsets.all(12),
-                                      child: Row(
+                            children: ratings.map((rating) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ZerviCard(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          if (listing.images.isNotEmpty)
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              child: Image.network(
-                                                listing.images.first,
-                                                width: 60,
-                                                height: 60,
-                                                fit: BoxFit.cover,
-                                              ),
-                                            )
-                                          else
-                                            Container(
-                                              width: 60,
-                                              height: 60,
-                                              decoration: BoxDecoration(
-                                                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Icon(
-                                                Icons.image_outlined,
-                                                color: isDark ? Colors.white30 : Colors.black26,
-                                              ),
-                                            ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  listing.title,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 15,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 3,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.orange
-                                                            .withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              6,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        (listing.category ??
-                                                                'Servicio')
-                                                            .toUpperCase(),
-                                                        style: const TextStyle(
-                                                          color: Colors.orange,
-                                                          fontSize: 9,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          letterSpacing: 0.5,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Icon(
-                                                      Icons.location_on_outlined,
-                                                      size: 10,
-                                                      color: isDark ? Colors.white30 : Colors.black26,
-                                                    ),
-                                                    const SizedBox(width: 2),
-                                                    Flexible(
-                                                      child: Text(
-                                                        listing.city ?? 'Posadas',
-                                                        style: TextStyle(
-                                                          color: isDark ? Colors.white30 : Colors.black26,
-                                                          fontSize: 10,
-                                                        ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
+                                          Row(
+                                            children: List.generate(5, (index) {
+                                              return Icon(
+                                                index < rating.rating
+                                                    ? Icons.star_rounded
+                                                    : Icons.star_border_rounded,
+                                                color: index < rating.rating
+                                                    ? Colors.amber
+                                                    : (isDark ? Colors.white24 : Colors.black12),
+                                                size: 18,
+                                              );
+                                            }),
+                                          ),
+                                          Text(
+                                            DateFormat('d/M/yyyy').format(rating.createdAt),
+                                            style: TextStyle(
+                                              color: isDark ? Colors.white30 : Colors.black38,
+                                              fontSize: 12,
                                             ),
                                           ),
-                                          if (listing.price != null)
-                                            Text(
-                                              '\$${listing.price!.toStringAsFixed(0)}',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: isDark ? Colors.white : Colors.black87,
-                                              ),
-                                            ),
                                         ],
                                       ),
-                                    ),
+                                      if (rating.comment != null && rating.comment!.isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          rating.comment!,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: isDark ? Colors.white70 : Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                )
-                                .toList(),
+                                ),
+                              );
+                            }).toList(),
                           );
                         },
-                        loading: () => Column(
-                          children: List.generate(
-                            2,
-                            (index) => const Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: ZerviProfileListingSkeleton(),
-                            ),
-                          ),
-                        ),
-                        error: (err, _) => Text('Error: $err'),
                       ),
 
                       const SizedBox(height: 40),
@@ -850,6 +940,303 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showEditProfileDialog(BuildContext context, WidgetRef ref, Profile profile) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameCtrl = TextEditingController(text: profile.fullName);
+    final phoneCtrl = TextEditingController(text: profile.phone);
+    final locCtrl = TextEditingController(text: profile.location);
+    final bioCtrl = TextEditingController(text: profile.bio);
+    String? avatarUrl = profile.avatarUrl;
+    bool isUploadingAvatar = false;
+    bool acceptsEmergencies = profile.acceptsEmergencies;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E222B) : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
+                ),
+              ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Editar Perfil',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Selector de foto de perfil
+                      Center(
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? Colors.white24 : Colors.black12,
+                                  width: 4,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: isUploadingAvatar
+                                    ? const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 3,
+                                          color: Colors.blueAccent,
+                                        ),
+                                      )
+                                    : (avatarUrl != null && avatarUrl!.isNotEmpty)
+                                        ? Image.network(
+                                            avatarUrl!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const Icon(
+                                              Icons.person_rounded,
+                                              size: 50,
+                                              color: Colors.grey,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.person_rounded,
+                                            size: 50,
+                                            color: isDark ? Colors.white30 : Colors.black26,
+                                          ),
+                              ),
+                            ),
+                            if (!isUploadingAvatar)
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    final picker = ImagePicker();
+                                    final XFile? image = await picker.pickImage(
+                                      source: ImageSource.gallery,
+                                      maxWidth: 512,
+                                      maxHeight: 512,
+                                      imageQuality: 80,
+                                    );
+                                    if (image != null) {
+                                      setState(() {
+                                        isUploadingAvatar = true;
+                                      });
+                                      try {
+                                        final bytes = await image.readAsBytes();
+                                        final extension = image.name.split('.').last.toLowerCase();
+                                        final contentType = (extension == 'png') ? 'image/png' : 'image/jpeg';
+                                        final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
+                                        final filePath = 'avatars/${profile.id}/$fileName';
+
+                                        await ref.read(supabaseClientProvider).storage
+                                            .from('listings')
+                                            .uploadBinary(
+                                              filePath,
+                                              bytes,
+                                              fileOptions: FileOptions(
+                                                contentType: contentType,
+                                                upsert: true,
+                                              ),
+                                            );
+                                        
+                                        final newAvatarUrl = ref.read(supabaseClientProvider).storage
+                                            .from('listings')
+                                            .getPublicUrl(filePath);
+
+                                        setState(() {
+                                          avatarUrl = newAvatarUrl;
+                                          isUploadingAvatar = false;
+                                        });
+                                      } catch (e) {
+                                        setState(() {
+                                          isUploadingAvatar = false;
+                                        });
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error al subir la foto: $e'),
+                                              backgroundColor: Colors.redAccent,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.blueAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      Text('Nombre Completo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: nameCtrl,
+                        decoration: _inputDecoration(isDark, 'Ej. Juan Pérez'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Text('Teléfono', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: _inputDecoration(isDark, 'Ej. +54 376 4123456'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Text('Ubicación / Ciudad', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: locCtrl,
+                        decoration: _inputDecoration(isDark, 'Ej. Posadas, Misiones'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Text('Sobre mí', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: bioCtrl,
+                        maxLines: 3,
+                        decoration: _inputDecoration(isDark, 'Escribe una breve descripción...'),
+                      ),
+                      const SizedBox(height: 16),
+
+                      SwitchListTile(
+                        title: const Text('Acepta Emergencias / Urgencias', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: Colors.blueAccent,
+                        value: acceptsEmergencies,
+                        onChanged: (val) {
+                          setState(() {
+                            acceptsEmergencies = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final updatedProfile = Profile(
+                              id: profile.id,
+                              fullName: nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : null,
+                              phone: phoneCtrl.text.trim().isNotEmpty ? phoneCtrl.text.trim() : null,
+                              location: locCtrl.text.trim().isNotEmpty ? locCtrl.text.trim() : 'Posadas, Misiones',
+                              bio: bioCtrl.text.trim().isNotEmpty ? bioCtrl.text.trim() : null,
+                              avatarUrl: avatarUrl,
+                              acceptsEmergencies: acceptsEmergencies,
+                              ratingAvgPro: profile.ratingAvgPro,
+                              reviewCountPro: profile.reviewCountPro,
+                              ratingAvgClient: profile.ratingAvgClient,
+                              reviewCountClient: profile.reviewCountClient,
+                              createdAt: profile.createdAt,
+                            );
+
+                            try {
+                              await ref.read(profileRepositoryProvider).updateProfile(updatedProfile);
+                              ref.invalidate(profileProvider(profile.id));
+                              
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Perfil actualizado con éxito'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error al guardar: $e')),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : Colors.black,
+                            foregroundColor: isDark ? Colors.black : Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          child: const Text('Guardar Cambios', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  InputDecoration _inputDecoration(bool isDark, String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+        fontSize: 13,
+        color: isDark ? Colors.white30 : Colors.black38,
+      ),
+      filled: true,
+      fillColor: isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.all(16),
     );
   }
 }

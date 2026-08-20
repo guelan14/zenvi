@@ -66,4 +66,11 @@ class ChatRepository {
       'last_message_at': DateTime.now().toIso8601String(),
     }).eq('id', conversationId);
   }
+
+  Future<void> deleteConversation(String conversationId) async {
+    // Delete all messages in the conversation first
+    await _client.from('messages').delete().eq('conversation_id', conversationId);
+    // Delete the conversation
+    await _client.from('conversations').delete().eq('id', conversationId);
+  }
 }

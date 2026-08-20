@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:zenvi/core/theme/map_styles.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1026,23 +1027,101 @@ class _PublishScreenState extends ConsumerState<PublishScreen> {
     );
   }
 
+  Future<TimeOfDay?> _showCustomTimePicker({
+    required BuildContext context,
+    required TimeOfDay initialTime,
+  }) async {
+    TimeOfDay tempTime = initialTime;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return showModalBottomSheet<TimeOfDay>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          height: 300,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.black54,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Seleccionar Hora',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(tempTime),
+                      child: const Text(
+                        'Confirmar',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: CupertinoTheme(
+                  data: CupertinoThemeData(
+                    brightness: isDark ? Brightness.dark : Brightness.light,
+                    textTheme: CupertinoTextThemeData(
+                      dateTimePickerTextStyle: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.time,
+                    initialDateTime: DateTime(2020, 1, 1, tempTime.hour, tempTime.minute),
+                    onDateTimeChanged: (DateTime newDate) {
+                      tempTime = TimeOfDay(hour: newDate.hour, minute: newDate.minute);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _selectTime(
     int day,
     int rangeIndex,
     String type,
     TimeOfDay initialTime,
   ) async {
-    final picked = await showTimePicker(
+    final picked = await _showCustomTimePicker(
       context: context,
       initialTime: initialTime,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Colors.black),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked != null) {
       setState(() {

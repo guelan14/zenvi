@@ -187,9 +187,19 @@ class _MyCustomersScreenState extends ConsumerState<MyCustomersScreen> {
                     style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'Correo Electrónico (Opcional)',
+                      labelText: 'Correo Electrónico',
                       labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
                     ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Por favor ingresá el correo electrónico';
+                      }
+                      final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                      if (!emailRegExp.hasMatch(val.trim())) {
+                        return 'Por favor ingresá un correo válido';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

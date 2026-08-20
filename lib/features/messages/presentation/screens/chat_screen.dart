@@ -11,6 +11,9 @@ import 'package:zenvi/features/appointments/domain/providers/appointment_provide
 import 'package:zenvi/features/messages/domain/providers/chat_providers.dart';
 import 'package:zenvi/features/home/domain/providers/home_providers.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zenvi/shared/domain/models/availability.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Listing? listing;
@@ -23,6 +26,93 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _messageController = TextEditingController();
+  bool _isBlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBlockState();
+  }
+
+  Future<void> _loadBlockState() async {
+    final targetId = widget.otherUserId ?? widget.listing?.authorId;
+    if (targetId != null && targetId.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final blockedUsers = prefs.getStringList('blocked_users') ?? [];
+      if (mounted) {
+        setState(() {
+          _isBlocked = blockedUsers.contains(targetId);
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleBlockChat(String targetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final blockedUsers = prefs.getStringList('blocked_users') ?? [];
+    if (_isBlocked) {
+      blockedUsers.remove(targetId);
+    } else {
+      blockedUsers.add(targetId);
+    }
+    await prefs.setStringList('blocked_users', blockedUsers);
+    if (mounted) {
+      setState(() {
+        _isBlocked = !_isBlocked;
+      });
+    }
+  }
+
+  Future<void> _confirmDeleteChat(BuildContext context, WidgetRef ref, String conversationId) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E2E3D) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Eliminar Chat', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text('¿Estás seguro de que quieres eliminar esta conversación? Se borrarán todos los mensajes de forma permanente.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        await ref.read(chatRepositoryProvider).deleteConversation(conversationId);
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Conversación eliminada con éxito'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar chat: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +156,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final profileAsync = ref.watch(profileProvider(targetUserId));
+    final availabilityAsync = ref.watch(availabilityProvider(targetUserId));
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final userMode = ref.watch(userModeProvider);
@@ -135,24 +226,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           },
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.calendar_month_rounded,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            tooltip: isProvider ? 'Proponer Turno' : 'Solicitar Turno',
-            onPressed: () => _showRequestAppointment(context, ref, activeListing),
-          ),
-          IconButton(
-            onPressed: () {},
+          PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: isDark ? Colors.white : Colors.black),
+            color: isDark ? const Color(0xFF1E222B) : Colors.white,
+            onSelected: (value) async {
+              if (value == 'block') {
+                await _toggleBlockChat(targetUserId);
+              } else if (value == 'delete' && conversation != null) {
+                await _confirmDeleteChat(context, ref, conversation.id);
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'block',
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _isBlocked ? 'Desbloquear chat' : 'Bloquear chat',
+                        style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                if (conversation != null)
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Eliminar chat',
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        ),
+                      ],
+                    ),
+                  ),
+              ];
+            },
           ),
         ],
       ),
       body: Column(
         children: [
-          // ─── Banner de Turno ───────────────────────────────────────────────
-          if (activeListing != null) _buildAppointmentBanner(activeListing, isProvider),
+          _buildAppointmentBanner(activeListing, isProvider, availabilityAsync.value),
 
           Expanded(
             child: conversationAsync.when(
@@ -195,48 +323,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             currentUser?.id,
             isProvider,
             activeListing,
+            availabilityAsync.value,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAppointmentBanner(Listing listing, bool isProvider) {
+  Widget _buildAppointmentBanner(Listing? listing, bool isProvider, List<Availability>? availability) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasNoFixedSchedule = !isProvider && availability != null && availability.isEmpty;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF9F9F9),
         border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(10),
+              color: isDark ? const Color(0xFF252A36) : const Color(0xFFF1F1F1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.calendar_today_rounded, size: 20, color: isDark ? Colors.white : Colors.black87),
+            child: Icon(
+              hasNoFixedSchedule ? Icons.chat_bubble_outline_rounded : Icons.calendar_month_rounded, 
+              size: 22, 
+              color: isDark ? Colors.white : Colors.black87
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isProvider ? '¿Querés proponer un turno?' : '¿Querés solicitar un turno?',
+                  hasNoFixedSchedule 
+                      ? 'Coordiná tu turno por chat'
+                      : (isProvider ? 'Proponer Turno / Presupuesto' : 'Solicitar un Turno'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  isProvider 
-                      ? 'Enviá una propuesta de agenda y presupuesto al cliente.'
-                      : 'Enviá una solicitud de agenda y presupuesto al profesional.',
+                  hasNoFixedSchedule
+                      ? 'Este profesional atiende con horarios dinámicos. Acordá un momento aquí.'
+                      : (isProvider 
+                          ? 'Definí fecha, hora y precio para tu cliente.'
+                          : 'Elegí el servicio y propone tu horario.'),
                   style: TextStyle(
                     fontSize: 11,
                     color: isDark ? Colors.white54 : Colors.black54,
@@ -245,20 +385,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _showRequestAppointment(context, ref, listing),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? Colors.white : Colors.black,
-              foregroundColor: isDark ? Colors.black : Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          if (!hasNoFixedSchedule)
+            ElevatedButton(
+              onPressed: () => _showRequestAppointment(context, ref, listing),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? Colors.white : Colors.black,
+                foregroundColor: isDark ? Colors.black : Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(
+                isProvider ? 'Proponer' : 'Solicitar',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
             ),
-            child: Text(
-              isProvider ? 'Proponer' : 'Solicitar',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
         ],
       ),
     );
@@ -430,8 +571,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInput(String? conversationId, String? currentUserId, bool isProvider, Listing? activeListing) {
+  Widget _buildInput(String? conversationId, String? currentUserId, bool isProvider, Listing? activeListing, List<Availability>? availability) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_isBlocked) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E222B) : Colors.white,
+          border: Border(top: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFEEEEEE))),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+          ),
+          child: const Text(
+            'Chat bloqueado. Desbloquéalo desde el menú superior para poder enviar mensajes.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
       decoration: BoxDecoration(
@@ -440,20 +610,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       child: Row(
         children: [
-          if (isProvider) ...[
-            IconButton(
-              onPressed: () => _showRequestAppointment(context, ref, activeListing),
-              icon: Icon(
-                Icons.calendar_month_rounded,
-                color: isDark ? Colors.white70 : Colors.black87,
-                size: 24,
-              ),
-              tooltip: 'Proponer Turno',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 12),
-          ],
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -556,85 +712,113 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     String? selectedListingId = listing?.id;
     bool isLoadingListings = false;
     List<Listing> localListings = [];
+    List<Appointment>? professionalAppointments;
+    bool isLoadingAppointments = false;
 
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
 
-            if (listing == null && localListings.isEmpty && !isLoadingListings) {
-              isLoadingListings = true;
-              Future.microtask(() async {
-                try {
-                  final res = await ref.read(profileListingsProvider(professionalId).future);
-                  setState(() {
-                    localListings = res;
-                    isLoadingListings = false;
-                    if (localListings.isNotEmpty) {
-                      selectedListingId = localListings.first.id;
-                      if (localListings.first.price != null) {
-                        priceController.text = localListings.first.price!.toStringAsFixed(0);
-                      }
+                if (listing == null && localListings.isEmpty && !isLoadingListings) {
+                  isLoadingListings = true;
+                  Future.microtask(() async {
+                    try {
+                      final res = await ref.read(profileListingsProvider(professionalId).future);
+                      setState(() {
+                        localListings = res;
+                        isLoadingListings = false;
+                        if (localListings.isNotEmpty) {
+                          selectedListingId = localListings.first.id;
+                          if (localListings.first.price != null) {
+                            priceController.text = localListings.first.price!.toStringAsFixed(0);
+                          }
+                        }
+                      });
+                    } catch (e) {
+                      setState(() => isLoadingListings = false);
                     }
                   });
-                } catch (e) {
-                  setState(() => isLoadingListings = false);
                 }
-              });
-            }
 
-            return Container(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-              ),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E222B) : Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(28),
-                  topRight: Radius.circular(28),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white24 : Colors.black12,
-                        borderRadius: BorderRadius.circular(2),
+                if (professionalAppointments == null && !isLoadingAppointments) {
+                  isLoadingAppointments = true;
+                  Future.microtask(() async {
+                    try {
+                      final apps = await ref.read(appointmentRepositoryProvider).getAppointmentsForUser(professionalId);
+                      setState(() {
+                        professionalAppointments = apps;
+                        isLoadingAppointments = false;
+                      });
+                    } catch (_) {
+                      setState(() => isLoadingAppointments = false);
+                    }
+                  });
+                }
+
+                final availableHeight = MediaQuery.of(context).size.height - MediaQuery.of(context).viewInsets.bottom;
+
+                return AnimatedPadding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.decelerate,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxHeight: availableHeight * 0.85,
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E222B) : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            isProvider ? 'Proponer Turno' : 'Solicitar Turno',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    isProvider ? 'Proponer Turno' : 'Solicitar Turno',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    isProvider 
-                        ? 'Establecé la fecha, hora y presupuesto para el cliente.'
-                        : 'Establecé la fecha, hora y presupuesto para el profesional.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.white54 : Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                      const SizedBox(height: 8),
+                      Text(
+                        isProvider 
+                            ? 'Establecé la fecha, hora y presupuesto para el cliente.'
+                            : 'Establecé la fecha, hora y presupuesto para el profesional.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white54 : Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
 
                   if (listing == null) ...[
                     Text(
@@ -697,86 +881,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final date = await _showCustomDatePicker(
-                              context: context,
-                              initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 1)),
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 30)),
-                            );
-                            if (date != null) {
-                              setState(() => selectedDate = date);
-                            }
-                          },
-                          icon: Icon(
-                            Icons.calendar_today_rounded,
-                            size: 18,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                          label: Text(
-                            selectedDate == null
-                                ? 'Fecha'
-                                : DateFormat('dd/MM/yyyy').format(selectedDate!),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(
-                              color: isDark ? Colors.white10 : Colors.black12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final date = await _showCustomDatePicker(
+                        context: context,
+                        initialDate: selectedDate ?? DateTime.now().add(const Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          selectedDate = date;
+                          selectedTime = null; // Reset time when date changes
+                        });
+                      }
+                    },
+                    icon: Icon(
+                      Icons.calendar_today_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                    label: Text(
+                      selectedDate == null
+                          ? 'Seleccionar Fecha'
+                          : 'Fecha: ${DateFormat('dd/MM/yyyy').format(selectedDate!)}',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final time = await _showCustomTimePicker(
-                              context: context,
-                              initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
-                            );
-                            if (time != null) {
-                              setState(() => selectedTime = time);
-                            }
-                          },
-                          icon: Icon(
-                            Icons.access_time_rounded,
-                            size: 18,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                          label: Text(
-                            selectedTime == null
-                                ? 'Hora'
-                                : selectedTime!.format(context),
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(
-                              color: isDark ? Colors.white10 : Colors.black12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 20),
+
+                  // Selección de Horarios y Slots
+                  if (selectedDate != null) ...[
+                    _buildTimeSlotsSection(
+                      professionalId: professionalId,
+                      selectedDate: selectedDate!,
+                      appointments: professionalAppointments ?? [],
+                      isDark: isDark,
+                      selectedTime: selectedTime,
+                      onTimeSelected: (time) {
+                        setState(() => selectedTime = time);
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                  ],
 
                   Text(
                     isProvider ? 'Presupuesto propuesto (\$)' : 'Presupuesto acordado / ofrecido (\$)',
@@ -837,114 +994,117 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                       contentPadding: const EdgeInsets.all(16),
                     ),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
                   ),
-                  const SizedBox(height: 28),
-                  
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: (selectedDate == null || selectedTime == null || selectedListingId == null)
-                          ? null
-                          : () async {
-                              final start = DateTime(
-                                selectedDate!.year,
-                                selectedDate!.month,
-                                selectedDate!.day,
-                                selectedTime!.hour,
-                                selectedTime!.minute,
-                              );
-
-                              final finalPrice = double.tryParse(priceController.text.trim()) ?? 0.0;
-
-                              final appointment = Appointment(
-                                id: const Uuid().v4(),
-                                listingId: selectedListingId!,
-                                customerId: isProvider ? targetUserId : user.id,
-                                professionalId: professionalId,
-                                scheduledAt: start,
-                                price: finalPrice > 0 ? finalPrice : null,
-                                status: AppointmentStatus.pending,
-                                createdByProvider: isProvider,
-                                notes: notesController.text.trim().isNotEmpty
-                                    ? notesController.text.trim()
-                                    : null,
-                                createdAt: DateTime.now(),
-                              );
-
-                              try {
-                                await ref
-                                    .read(appointmentRepositoryProvider)
-                                    .createAppointment(appointment);
-
-                                final dateStr = DateFormat('dd/MM/yyyy').format(start);
-                                final timeStr = DateFormat('HH:mm').format(start);
-                                final priceStr = finalPrice > 0 ? ' por \$${finalPrice.toStringAsFixed(0)}' : '';
-                                
-                                final messageContent = isProvider
-                                    ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
-                                    : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
-
-                                final conversation = ref
-                                    .read(currentConversationProvider(targetUserId))
-                                    .value;
-                                if (conversation != null) {
-                                  await ref
-                                      .read(chatRepositoryProvider)
-                                      .sendMessage(
-                                        conversation.id,
-                                        user.id,
-                                        messageContent,
-                                      );
-                                }
-
-                                if (context.mounted) {
-                                  Navigator.of(context).pop();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(isProvider
-                                          ? 'Propuesta de turno enviada con éxito'
-                                          : 'Turno solicitado con éxito'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? Colors.white : Colors.black,
-                        foregroundColor: isDark ? Colors.black : Colors.white,
-                        disabledBackgroundColor: isDark ? Colors.white10 : Colors.black12,
-                        disabledForegroundColor: isDark ? Colors.white30 : Colors.black38,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        isProvider ? 'Enviar Propuesta' : 'Enviar Solicitud',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
-            );
-          },
-        );
-      },
-    );
-  }
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: (selectedDate == null || selectedTime == null || selectedListingId == null)
+                  ? null
+                  : () async {
+                      final start = DateTime(
+                        selectedDate!.year,
+                        selectedDate!.month,
+                        selectedDate!.day,
+                        selectedTime!.hour,
+                        selectedTime!.minute,
+                      );
+
+                      final finalPrice = double.tryParse(priceController.text.trim()) ?? 0.0;
+
+                      final appointment = Appointment(
+                        id: const Uuid().v4(),
+                        listingId: selectedListingId!,
+                        customerId: isProvider ? targetUserId : user.id,
+                        professionalId: professionalId,
+                        scheduledAt: start,
+                        price: finalPrice > 0 ? finalPrice : null,
+                        status: AppointmentStatus.pending,
+                        createdByProvider: isProvider,
+                        notes: notesController.text.trim().isNotEmpty
+                            ? notesController.text.trim()
+                            : null,
+                        createdAt: DateTime.now(),
+                      );
+
+                      try {
+                        await ref
+                            .read(appointmentRepositoryProvider)
+                            .createAppointment(appointment);
+
+                        final dateStr = DateFormat('dd/MM/yyyy').format(start);
+                        final timeStr = DateFormat('HH:mm').format(start);
+                        final priceStr = finalPrice > 0 ? ' por \$${finalPrice.toStringAsFixed(0)}' : '';
+                        
+                        final messageContent = isProvider
+                            ? '📅 Propuso un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})'
+                            : '📅 Solicitó un turno para el día $dateStr a las $timeStr hs$priceStr. (ID: ${appointment.id})';
+
+                        final conversation = ref
+                            .read(currentConversationProvider(targetUserId))
+                            .value;
+                        if (conversation != null) {
+                          await ref
+                              .read(chatRepositoryProvider)
+                              .sendMessage(
+                                conversation.id,
+                                user.id,
+                                messageContent,
+                              );
+                        }
+
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(isProvider
+                                  ? 'Propuesta de turno enviada con éxito'
+                                  : 'Turno solicitado con éxito'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDark ? Colors.white : Colors.black,
+                foregroundColor: isDark ? Colors.black : Colors.white,
+                disabledBackgroundColor: isDark ? Colors.white10 : Colors.black12,
+                disabledForegroundColor: isDark ? Colors.white30 : Colors.black38,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                isProvider ? 'Enviar Propuesta' : 'Enviar Solicitud',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  },
+),
+),
+);
+},
+);
+}
 
   Future<DateTime?> _showCustomDatePicker({
     required BuildContext context,
@@ -966,7 +1126,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       builder: (BuildContext context) {
         return Container(
-          height: 300,
+          height: 460,
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             children: [
@@ -993,38 +1153,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(tempDate),
-                      child: const Text(
-                        'Confirmar',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(width: 60),
                   ],
                 ),
               ),
               const Divider(),
               Expanded(
-                child: CupertinoTheme(
-                  data: CupertinoThemeData(
-                    brightness: isDark ? Brightness.dark : Brightness.light,
-                    textTheme: CupertinoTextThemeData(
-                      dateTimePickerTextStyle: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontSize: 18,
-                      ),
-                    ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: isDark
+                        ? const ColorScheme.dark(
+                            primary: Colors.blueAccent,
+                            onPrimary: Colors.white,
+                            surface: const Color(0xFF1E222B),
+                            onSurface: Colors.white,
+                          )
+                        : const ColorScheme.light(
+                            primary: Colors.black,
+                            onPrimary: Colors.white,
+                            surface: Colors.white,
+                            onSurface: Colors.black87,
+                          ),
                   ),
-                  child: CupertinoDatePicker(
-                    mode: CupertinoDatePickerMode.date,
-                    initialDateTime: tempDate,
-                    minimumDate: firstDate,
-                    maximumDate: lastDate,
-                    onDateTimeChanged: (DateTime newDate) {
-                      tempDate = newDate;
+                  child: CalendarDatePicker(
+                    initialDate: tempDate,
+                    firstDate: firstDate,
+                    lastDate: lastDate,
+                    onDateChanged: (DateTime newDate) {
+                      Navigator.of(context).pop(newDate);
                     },
                   ),
                 ),
@@ -1119,6 +1275,268 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTimeSlotsSection({
+    required String professionalId,
+    required DateTime selectedDate,
+    required List<Appointment> appointments,
+    required bool isDark,
+    required TimeOfDay? selectedTime,
+    required ValueChanged<TimeOfDay?> onTimeSelected,
+  }) {
+    String targetProfileId = professionalId;
+    if (professionalId.contains('|')) {
+      final parts = professionalId.split('|');
+      targetProfileId = parts[0].isNotEmpty ? parts[0] : '';
+    }
+
+    if (targetProfileId.isEmpty) return const SizedBox.shrink();
+
+    final availabilityAsync = ref.watch(availabilityProvider(targetProfileId));
+
+    return availabilityAsync.when(
+      data: (slots) {
+        Appointment? blockedEvent;
+        for (var app in appointments) {
+          if (app.scheduledAt.year == selectedDate.year &&
+              app.scheduledAt.month == selectedDate.month &&
+              app.scheduledAt.day == selectedDate.day &&
+              app.notes != null &&
+              app.notes!.startsWith('[BLOCKED_DAY]')) {
+            blockedEvent = app;
+            break;
+          }
+        }
+
+        if (blockedEvent != null) {
+          final reason = blockedEvent.notes!.replaceFirst('[BLOCKED_DAY]', '').trim();
+          final displayReason = reason.isNotEmpty ? reason : 'Feriado / Día no laborable';
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2C1E21) : const Color(0xFFFDE8E8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.block, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Día no laborable / bloqueado por el profesional. Motivo: $displayReason',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.red[300] : Colors.red[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (slots.isEmpty) {
+          return _buildManualTimePickerFallback(selectedTime, onTimeSelected, isDark);
+        }
+
+        final dayOfWeek = selectedDate.weekday % 7;
+        final dailySlots = slots.where((s) => s.dayOfWeek == dayOfWeek).toList();
+
+        if (dailySlots.isEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Seleccionar Hora',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildNoAvailabilityWarning(selectedDate, isDark),
+              const SizedBox(height: 8),
+              _buildManualTimePickerFallback(selectedTime, onTimeSelected, isDark),
+            ],
+          );
+        }
+
+        final List<TimeOfDay> timeSlots = [];
+        for (var slot in dailySlots) {
+          timeSlots.addAll(_generateSlotsForAvailability(slot));
+        }
+
+        final seen = <String>{};
+        final uniqueTimeSlots = timeSlots.where((slot) {
+          final key = '${slot.hour}:${slot.minute}';
+          return seen.add(key);
+        }).toList();
+
+        uniqueTimeSlots.sort((a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Horarios Disponibles',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black87,
+                ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...uniqueTimeSlots.map((timeSlot) {
+                  final isSelected = selectedTime == timeSlot;
+                  
+                  final slotDateTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, timeSlot.hour, timeSlot.minute);
+                  final isOccupied = appointments.any((app) =>
+                      app.status != AppointmentStatus.rejected &&
+                      app.status != AppointmentStatus.cancelled &&
+                      app.scheduledAt.difference(slotDateTime).inMinutes.abs() < 30);
+
+                  Color bg;
+                  Color text;
+                  BorderSide? border;
+
+                  if (isOccupied) {
+                    bg = isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02);
+                    text = isDark ? Colors.white24 : Colors.black26;
+                    border = BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04));
+                  } else if (isSelected) {
+                    bg = isDark ? Colors.white : Colors.black;
+                    text = isDark ? Colors.black : Colors.white;
+                  } else {
+                    bg = isDark ? const Color(0xFF14171E) : const Color(0xFFF5F5F5);
+                    text = isDark ? Colors.white70 : Colors.black87;
+                  }
+
+                  return InkWell(
+                    onTap: isOccupied
+                        ? null
+                        : () => onTimeSelected(timeSlot),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: border != null ? Border.all(color: border.color) : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isOccupied) ...[
+                            Icon(Icons.remove_circle_outline_rounded, size: 12, color: text),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            '${timeSlot.hour.toString().padLeft(2, '0')}:${timeSlot.minute.toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: text,
+                              decoration: isOccupied ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 16), child: CircularProgressIndicator())),
+      error: (_, __) => _buildManualTimePickerFallback(selectedTime, onTimeSelected, isDark),
+    );
+  }
+
+  List<TimeOfDay> _generateSlotsForAvailability(Availability slot) {
+    final List<TimeOfDay> slots = [];
+    final startMin = slot.startTime.hour * 60 + slot.startTime.minute;
+    final endMin = slot.endTime.hour * 60 + slot.endTime.minute;
+    
+    const step = 30;
+    for (int min = startMin; min < endMin; min += step) {
+      slots.add(TimeOfDay(hour: min ~/ 60, minute: min % 60));
+    }
+    return slots;
+  }
+
+  Widget _buildNoAvailabilityWarning(DateTime selectedDate, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2C1E21) : const Color(0xFFFDE8E8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'El profesional no configuró atención para los ${DateFormat('EEEE', 'es_ES').format(selectedDate)}s.',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.red[300] : Colors.red[900],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualTimePickerFallback(TimeOfDay? selectedTime, ValueChanged<TimeOfDay?> onTimeSelected, bool isDark) {
+    return Container(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          final time = await _showCustomTimePicker(
+            context: context,
+            initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
+          );
+          if (time != null) {
+            onTimeSelected(time);
+          }
+        },
+        icon: Icon(
+          Icons.access_time_rounded,
+          size: 18,
+          color: isDark ? Colors.white70 : Colors.black87,
+        ),
+        label: Text(
+          selectedTime == null
+              ? 'Seleccionar Hora Manualmente'
+              : 'Hora seleccionada: ${selectedTime!.format(context)}',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
     );
   }
 }
